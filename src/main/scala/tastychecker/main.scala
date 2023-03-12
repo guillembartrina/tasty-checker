@@ -22,7 +22,7 @@ import tastyquery.jdk.ClasspathLoaders
 // -------------------------------------------------------
 
 object TASTyChecker:
-  val checks = List()
+  val checks = List(LSP, LSPComp, LSPStat)
 
   private def printProblems(problems: List[Problem]): Unit =
     println("--------------------------------------------------")
