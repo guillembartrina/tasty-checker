@@ -101,10 +101,6 @@ object LSPComp extends Check:
   override def check(tree: Tree)(using Context): List[NotSubtype] =
     given Tree = tree
     tree match
-      case t @ Apply(fun, args) =>
-        //val ttpe = fun.tpe.asInstanceOf[MethodType].resultType
-        //if ttpe.isSubtype(t.tpe) then Nil else NotSubtype(ttpe, t.tpe, tree) :: Nil
-        Nil
       case t @ Block(_, expr) =>
         checkSubtype(expr, t.tpe).toList
       case t @ If(_, thenPart, elsePart) =>
@@ -123,8 +119,6 @@ object LSPComp extends Check:
           b <- cases.map(_.body)
           p <- checkSubtype(b, t.tpe)
         yield p
-      case t @ TypeApply(fun, args) =>
-        checkSubtype(fun, t.tpe).toList
       case t @ Try(expr, cases, finalizer) =>
         checkSubtype(expr, t.tpe).toList ::: {
           for
