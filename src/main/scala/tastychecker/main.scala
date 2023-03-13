@@ -28,7 +28,7 @@ def printProblems(target: List[Path], problems: List[List[Problem]]): Unit =
     println("PROBLEMS:")
     for (t, ps) <- target.zip(problems) if !ps.isEmpty do
       println("--------------------------------------------------")
-      println("Path: " + t)
+      println("Path: " + t.toAbsolutePath.normalize)
       for p <- ps do
         println("----------------------")
         println(p)

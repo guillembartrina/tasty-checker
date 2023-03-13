@@ -16,7 +16,8 @@ object Check:
     List(
       LSP,
       LSPComp,
-      LSPStat
+      LSPStat,
+      TypeParamBounds
     ).map(x => (x.name, x)).toMap
 
   def checks(names: List[String]): List[Check] =
@@ -155,4 +156,20 @@ object LSPStat extends Check:
         yield p
       case While(_, body) =>
         checkAny(body).toList
+      case _ => Nil
+
+// -------------------------------------------------------
+
+object TypeParamBounds extends Check:
+  private def checkBounds(tpe: TypeTree, bounds: TypeBounds)(using tree: Tree)(using Context): Option[NotConformsToBounds] =
+    if bounds.contains(tpe.toType) then None else Some(NotConformsToBounds(tpe.toType, bounds, tree))
+
+  override def check(tree: Tree)(using Context): List[NotConformsToBounds] =
+    given Tree = tree
+    tree match
+      case TypeApply(fun, args) =>
+        for
+          (a, t) <- args.zip(fun.tpe.widen.asInstanceOf[PolyType].paramTypeBounds)
+          p <- checkBounds(a, t)
+        yield p
       case _ => Nil
