@@ -16,35 +16,40 @@ import tastyquery.jdk.ClasspathLoaders
   val target: List[Path] = List()
   val extra: List[Path] = List() ++ default
 
-  TASTyChecker.check(target, extra)
+  val problems = TASTyChecker(Check.allChecks).check(target, extra)
+  printProblems(target, problems)
 }
+
+def printProblems(target: List[Path], problems: List[List[Problem]]): Unit =
+  println("--------------------------------------------------")
+  if problems.flatten.isEmpty
+  then println("NO PROBLEMS FOUND")
+  else
+    println("PROBLEMS:")
+    for (t, ps) <- target.zip(problems) if !ps.isEmpty do
+      println("--------------------------------------------------")
+      println("Path: " + t)
+      for p <- ps do
+        println("----------------------")
+        println(p)
+  println("--------------------------------------------------")
 
 // -------------------------------------------------------
 
-object TASTyChecker:
-  val checks = List(LSP, LSPComp, LSPStat)
+class TASTyChecker(val checks: List[Check]):
 
-  private def printProblems(problems: List[Problem]): Unit =
-    println("--------------------------------------------------")
-    if problems.isEmpty
-    then println("NO PROBLEMS FOUND")
-    else
-      println("PROBLEMS:")
-      for p <- problems do
-        println("--------------------------------------------------")
-        println(p)
-    println("--------------------------------------------------")
-
-  def check(target: Classpath, extra: Classpath): Unit =
+  def check(target: Classpath, extra: Classpath): List[List[Problem]] =
     val context = Contexts.init(target ++ extra)
     given Context = context
-    val checker = Checker(checks)
-    for entry <- target.entries do
+    for
+      entry <- target.entries.toList
+    yield
+      val checker = Checker(checks)
       val symbols = context.findSymbolsByClasspathEntry(entry)
       checker.check(symbols.map(_.tree.get))
-    printProblems(checker.allProblems)
+      checker.problems
 
-  def check(target: List[Path], extra: List[Path]): Unit =
+  def check(target: List[Path], extra: List[Path]): List[List[Problem]] =
     val targetClasspath = ClasspathLoaders.read(target)
     val extraClasspath = ClasspathLoaders.read(extra)
     check(targetClasspath, extraClasspath)

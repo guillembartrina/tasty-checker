@@ -1,6 +1,6 @@
 package tastychecker
 
-import scala.collection.mutable.ListBuffer
+import scala.collection.mutable as mut
 import tastyquery.Contexts.*
 import tastyquery.Names.*
 import tastyquery.Symbols.*
@@ -11,10 +11,10 @@ import tastyquery.Types.*
 
 class Checker(val checks: List[Check]):
 
-  private val problems: ListBuffer[Problem] = ListBuffer.empty[Problem]
+  private val _problems: mut.ListBuffer[Problem] = mut.ListBuffer.empty[Problem]
 
   private def walker(tree: Tree)(using Context): Unit =
-    checks.foreach(c => problems.addAll(c.check(tree)))
+    checks.foreach(c => _problems.addAll(c.check(tree)))
 
   def check(tree: Tree)(using Context): Unit =
     tree.walkTree(walker)
@@ -22,7 +22,7 @@ class Checker(val checks: List[Check]):
   def check(trees: Iterable[Tree])(using Context): Unit =
     trees.foreach(check)
 
-  def allProblems: List[Problem] = problems.toList.reverse
+  def problems: List[Problem] = _problems.toList.reverse
 
 // -------------------------------------------------------
 
