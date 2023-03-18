@@ -15,8 +15,7 @@ object Check:
   private val _checks: Map[String, Check] =
     List(
       LSP,
-      LSPComp,
-      LSPStat,
+      LSPStatements,
       TypeParamBounds
     ).map(x => (x.name, x)).toMap
 
@@ -38,26 +37,23 @@ object LSP extends Check:
   override def check(tree: Tree)(using Context): List[NotSubtype] =
     given Tree = tree
     tree match
-      case CaseDef(_, guard, _) =>
+      case ValDef(_, tpt, rhs, _) =>
         for
-          g <- guard.toList
-          p <- checkSubtype(g, defn.BooleanType)
+          r <- rhs.toList
+          p <- checkSubtype(r, tpt.toType)
         yield p
       case DefDef(_, _, resultTpt, rhs, _) =>
         for
           r <- rhs.toList
           p <- checkSubtype(r, resultTpt.toType)
         yield p
-      case ValDef(_, tpt, rhs, _) =>
-        for
-          r <- rhs.toList
-          p <- checkSubtype(r, tpt.toType)
-        yield p
       case Apply(fun, args) =>
         for
           (a, t) <- args.zip(fun.tpe.widen.asInstanceOf[MethodType].paramTypes)
           p <- checkSubtype(a, t)
         yield p
+      case Typed(expr, tpt) =>
+        checkSubtype(expr, tpt.toType).toList
       case Assign(lhs, rhs) =>
         checkSubtype(rhs, lhs.tpe).toList
       case If(cond, _, _) =>
@@ -69,70 +65,38 @@ object LSP extends Check:
           t <- tpt.toList
           p <- checkSubtype(meth, t.toType)
         yield p
-      case Return(expr, from) =>
+      case Match(selector, cases) =>
+        checkSubtype(selector, defn.MatchableType).toList
+      case InlineMatch(selector, cases) =>
         for
-          e <- expr.toList
-          p <- checkSubtype(e, from.declaredType)
+          s <- selector.toList
+          p <- checkSubtype(s, defn.MatchableType)
+        yield p
+      case CaseDef(_, guard, _) =>
+        for
+          g <- guard.toList
+          p <- checkSubtype(g, defn.BooleanType)
         yield p
       case SeqLiteral(elems, elempt) =>
         for
           e <- elems
           p <- checkSubtype(e, elempt.toType)
         yield p
-      case Throw(expr) =>
-        checkSubtype(expr, defn.ThrowableType).toList
-      case Try(_, _, finalizer) =>
-        for
-          f <- finalizer.toList
-          p <- checkSubtype(f, defn.UnitType)
-        yield p
-      case Typed(expr, tpt) =>
-        checkSubtype(expr, tpt.toType).toList
       case While(cond, _) =>
         checkSubtype(cond, defn.BooleanType).toList
-      case _ => Nil
-
-// -------------------------------------------------------
-
-// LSP: Check computed types
-object LSPComp extends Check:
-  private def checkSubtype(term: TermTree, tpe: Type)(using tree: Tree)(using Context): Option[NotSubtype] =
-    if term.tpe.isSubtype(tpe) then None else Some(NotSubtype(term.tpe, tpe, tree))
-
-  override def check(tree: Tree)(using Context): List[NotSubtype] =
-    given Tree = tree
-    tree match
-      case t @ Block(_, expr) =>
-        checkSubtype(expr, t.tpe).toList
-      case t @ If(_, thenPart, elsePart) =>
-        checkSubtype(thenPart, t.tpe).toList ::: checkSubtype(elsePart, t.tpe).toList
-      case t @ InlineIf(_, thenPart, elsePart) =>
-        checkSubtype(thenPart, t.tpe).toList ::: checkSubtype(elsePart, t.tpe).toList
-      case t @ InlineMatch(_, cases) =>
+      case Throw(expr) =>
+        checkSubtype(expr, defn.ThrowableType).toList
+      case Return(expr, from) =>
         for
-          b <- cases.map(_.body)
-          p <- checkSubtype(b, t.tpe)
+          e <- expr.toList
+          p <- checkSubtype(e, from.declaredType)
         yield p
-      case t @ Inlined(expr, _, _) =>
-        checkSubtype(expr, t.tpe).toList
-      case t @ Match(_, cases) =>
-        for
-          b <- cases.map(_.body)
-          p <- checkSubtype(b, t.tpe)
-        yield p
-      case t @ Try(expr, cases, finalizer) =>
-        checkSubtype(expr, t.tpe).toList ::: {
-          for
-            b <- cases.map(_.body)
-            p <- checkSubtype(b, t.tpe)
-          yield p
-        }
       case _ => Nil
 
 // -------------------------------------------------------
 
 // LSP: Check statement types (Any)
-object LSPStat extends Check:
+object LSPStatements extends Check:
   private def checkAny(term: TermTree)(using tree: Tree)(using Context): Option[NotSubtype] =
     if term.tpe.isSubtype(defn.AnyType) then None else Some(NotSubtype(term.tpe, defn.AnyType, tree))
 
@@ -142,17 +106,17 @@ object LSPStat extends Check:
       case Template(_, _, _, body) =>
         for
           case b: TermTree <- body
-          p <- checkAny(b).toList
+          p <- checkAny(b)
         yield p
       case Block(stats, _) =>
         for
           case s: TermTree <- stats
-          p <- checkAny(s).toList
+          p <- checkAny(s)
         yield p
       case Try(_, _, finalizer) =>
         for
           f <- finalizer.toList
-          p <- checkAny(f).toList
+          p <- checkAny(f)
         yield p
       case While(_, body) =>
         checkAny(body).toList
