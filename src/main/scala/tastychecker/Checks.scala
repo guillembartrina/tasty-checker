@@ -5,8 +5,6 @@ import tastyquery.Names.*
 import tastyquery.Trees.*
 import tastyquery.Types.*
 
-// -------------------------------------------------------
-
 abstract class Check:
   val name: String = getClass.getSimpleName.init
   def check(tree: Tree)(using Context): List[Problem]
@@ -28,7 +26,9 @@ object Check:
 
   def allChecks: List[Check] = _checks.values.toList
 
+
 // -------------------------------------------------------
+// LSP
 
 trait MethodsLSP:
   protected def checkSubtype(tpea: Type, tpeb: Type)(using tree: Tree)(using Context): Option[NotSubtype] =
@@ -105,9 +105,7 @@ object LSP extends Check with MethodsLSP:
           yield p
         } ++ checkSubtype(tr, defn.NothingType).toList
       case _ => Nil
-    ret.toList
-
-// -------------------------------------------------------
+    ret.iterator.to(List)
 
 // LSP: Check computed types
 object LSPCalculated extends Check with MethodsLSP:
@@ -167,9 +165,7 @@ object LSPCalculated extends Check with MethodsLSP:
       case tr @ Literal(constant) =>
         checkSubtype(constant.wideType, tr.tpe.widen)
       case _ => Nil
-    ret.toList
-
-// -------------------------------------------------------
+    ret.iterator.to(List)
 
 // LSP: Check statement types (Any)
 object LSPStatements extends Check with MethodsLSP:
@@ -203,9 +199,10 @@ object LSPStatements extends Check with MethodsLSP:
       case While(_, body) =>
         checkSubtype(body, defn.AnyType)
       case _ => Nil
-    ret.toList
+    ret.iterator.to(List)
 
 // -------------------------------------------------------
+// TypeParamBounds
 
 object TypeParamBounds extends Check:
   private def checkBounds(tpe: TypeTree, bounds: TypeBounds)(using tree: Tree)(using Context): Option[NotConformsToBounds] =

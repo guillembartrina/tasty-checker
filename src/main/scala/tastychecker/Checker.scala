@@ -7,10 +7,7 @@ import tastyquery.Symbols.*
 import tastyquery.Trees.*
 import tastyquery.Types.*
 
-// -------------------------------------------------------
-
 class Checker(val checks: List[Check]):
-
   private val _problems: mut.ListBuffer[Problem] = mut.ListBuffer.empty[Problem]
 
   private def walker(tree: Tree)(using Context): Unit =
@@ -24,7 +21,6 @@ class Checker(val checks: List[Check]):
 
   def problems: List[Problem] = _problems.toList.reverse
 
-// -------------------------------------------------------
 
 /*
 extension (tree: Tree)
