@@ -2,13 +2,29 @@ package tastychecker
 
 import tastyquery.*
 import tastyquery.Contexts.*
+import tastyquery.Names.*
+import tastyquery.Symbols.*
 
 class BaseTestSuite extends munit.FunSuite:
-  protected def testWithContext(testName: String)(body: Context ?=> Any) =
+  protected def testWithContext(context: Context)(testName: String)(body: Context ?=> Any) =
     test(testName) {
-      body(using TestData.base_context)
+      body(using context)
     }
 
+  protected val testWithBaseContext = testWithContext(TestData.base_context)
+
+  protected def testSymbolWithContext(context: Context)(testName: String)(symbolPath: String)(body: Symbol => Context ?=> Any) =
+    val path = symbolPath.split("\\.").map(s =>
+        if s.endsWith("[$]") then moduleClassName(s.stripSuffix("[$]"))
+        else if s.endsWith("/T") then typeName(s.stripSuffix("/T"))
+        else termName(s)
+      ).toList
+    testWithContext(context)(testName) {
+      body(context.findSymbolFromRoot(path))
+    }
+
+  protected val testSymbolWithBaseContext = testSymbolWithContext(TestData.base_context)
+  
   protected def assertProblems(using munit.Location)(actual: List[Problem], expected: List[Problem]): Unit =
     val as = actual.toSet.map(_.toString)
     val es = expected.toSet.map(_.toString)

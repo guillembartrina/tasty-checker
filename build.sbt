@@ -9,7 +9,7 @@ lazy val root = project
     description := " Reference checker for TASTy, the Scala 3 interchange format",
     version := "0.0.0",
     libraryDependencies ++= Seq(
-      "ch.epfl.scala" %% "tasty-query" % "0.6.0",
+      "ch.epfl.scala" %% "tasty-query" % "0.7.1",
       "org.scalameta" %% "munit" % "0.7.29" % Test
     ),
     envVars += {

@@ -36,6 +36,8 @@ open class SimplePaths:
 
   type AliasOfAbstractType = AbstractType
   type AliasOfAbstractTypeWithBounds = AbstractTypeWithBounds
+
+  def abstractTerm: AnyRef = ???
 end SimplePaths
 
 // With members of the same shape as SimplePaths
@@ -49,4 +51,9 @@ class ConcreteSimplePathsChild extends SimplePaths:
   type AbstractTypeWithBounds = B
 
   type ConcreteOnlyMember = Boolean
+
+  override def abstractTerm: List[Int] = ???
+
+  class InnerClassMono extends A
+  class InnerClassPoly[T] extends C
 end ConcreteSimplePathsChild

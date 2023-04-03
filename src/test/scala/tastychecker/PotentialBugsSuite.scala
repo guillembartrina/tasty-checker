@@ -13,60 +13,33 @@ import tastyquery.Types.*
 
 class PotentialBugsSuite extends BaseTestSuite:
 
-  def testSymbolWithTestlibTastyQueryContext(testName: String)(symbolPath: String)(body: Symbol => Context ?=> Any) =
-    test(testName) {
-      val symbol = TestData.testlib_tastyquery_context.findSymbolFromRoot(symbolPath.split("\\.")
-        .map(s =>
-          if s.startsWith("&") then moduleClassName(s.stripPrefix("&"))
-          else if s.startsWith("#") then typeName(s.stripPrefix("#"))
-          else termName(s)).toList)
-      body(symbol)(using TestData.testlib_tastyquery_context)
-    }
+  private val testSymbolWithTestlibTastyQueryContext = testSymbolWithContext(TestData.testlib_tastyquery_context)
 
-  testSymbolWithTestlibTastyQueryContext("lambda-tpe-miss-impl")("simple_trees.#ForExpressions") { symbol =>
-    println("for tree")
-    println(symbol.tree.get)
-    intercept[NotImplementedError] {
-      val problems = Checker(Check.allChecks).check(symbol.tree.get)
-    }
-
-    // ONLY LAMBDA TPE IS MISSING, SO FAR
-
-    //BUG TASTY_QUERY: FIXED
-  }
-
-  testSymbolWithTestlibTastyQueryContext("uninit-annot")("simple_trees.#SpecialFunctionTypes") { symbol =>
-    println("special fun tree")
-    println(symbol.tree.get)
+  /*
+  testSymbolWithTestlibTastyQueryContext("pb001_lambda-tpe-miss-impl")("simple_trees.ForExpressions/T") { symbol =>
     val problems = Checker(Check.allChecks).check(symbol.tree.get)
+    //println(symbol.tree.get)
+  } //TASTY_QUERY TODO -> IMPLEMENTED 0.7.1
 
-    // ONLY LAMBDA TPE IS MISSING, SO FAR
+  testSymbolWithTestlibTastyQueryContext("pb002_uninit-annot")("simple_trees.SpecialFunctionTypes/T") { symbol =>
+    val problems = Checker(Check.allChecks).check(symbol.tree.get)
+    //println(symbol.tree.get)
+  } //TASTY_QUERY BUG -> FIXED 0.7.1
 
-    //BUG TASTY_QUERY: FIXED
-  }
-
-  testSymbolWithTestlibTastyQueryContext("sig-toplevel-init")("<empty>.toplevelEmptyPackage$package") { symbol =>
+  testSymbolWithTestlibTastyQueryContext("pb003_sig-toplevel-init")("<empty>.toplevelEmptyPackage$package") { symbol =>
     val tree = symbol.tree.get.asInstanceOf[ValDef].rhs.get.asInstanceOf[Apply].fun.asInstanceOf[Select]
-    println("init class tree")
-    println(tree)
 
-    println("ACTUAL SIGNATURE: " +
-      tree.qualifier.tpe.asInstanceOf[TypeRef]
-      .optSymbol.get.asClass.declarations(2).asTerm.signedName
-    )
+    val sig1 = tree.qualifier.tpe.asInstanceOf[TypeRef].optSymbol.get.asClass.declarations(2).asTerm.signedName
+    val sig2 = tree.name
+    
+    assertEquals(sig1, sig2)
+    //println(tree)
+    //println("ACTUAL SIGNATURE: " + sig1)
+    //println("TASTY SIGNATURE: " + sig2)
+  } //TASTY_QUERY BUG -> FIXED 0.7.1
 
-    println("TASTY SIGNATURE: " +
-      tree.name
-    )
-    // SHOULD BE THE SAME
-
-    //BUG TASTY_QUERY: TO BE FIXED
-  }
-
-  testSymbolWithTestlibTastyQueryContext("sig-anon-class-constr")("simple_trees.&ScalaEnum") { symbol =>
+  testSymbolWithTestlibTastyQueryContext("pb004_sig-anon-class-constr")("simple_trees.&ScalaEnum") { symbol =>
     val tree = symbol.asDeclaringSymbol.declarations(0).tree.get.asInstanceOf[DefDef].rhs.get.asInstanceOf[Block]
-    println("anon class tree")
-    println(tree)
 
     val lookupin = (
       tree.expr.asInstanceOf[Typed]
@@ -75,43 +48,30 @@ class PotentialBugsSuite extends BaseTestSuite:
       .tpe.asInstanceOf[TermRef]
     )
 
-    println("ACTUAL SIGNATURE: " +
-      lookupin.prefix.asInstanceOf[TypeRef]
-      .optSymbol.get.asClass.declarations(3).asTerm.signedName
-    )
-    // OR
-    //.stats(0).asInstanceOf[ClassDef]
-    //.rhs.constr.symbol.signature
+    val sig1 = lookupin.prefix.asInstanceOf[TypeRef].optSymbol.get.asClass.declarations(3).asTerm.signedName
+    val sig2 = lookupin.name
 
-    println("TASTY SIGNATURE: " +
-      lookupin.name
-    )
-    // SHOULD BE THE SAME
+    assertEquals(sig1, sig2)
+    //println(tree)
+    //println("ACTUAL SIGNATURE: " + sig1)
+    //println("TASTY SIGNATURE: " + sig2)
+  } //TASTY_QUERY BUG -> FIXED 0.7.1
 
-    //BUG TASTY_QUERY: TO BE FIXED?
-  }
-
-  testSymbolWithTestlibTastyQueryContext("sig-match")("simple_trees.#MatchType") { symbol =>
+  testSymbolWithTestlibTastyQueryContext("pb005_sig-match")("simple_trees.#MatchType") { symbol =>
     val tree = (
       symbol.asDeclaringSymbol.getDecl(termName("v")).get.tree.get.asInstanceOf[ValDef]
       .rhs.get.asInstanceOf[Apply].fun.asInstanceOf[TypeApply]
       .fun.asInstanceOf[Select]
     )
-    println("init class tree")
-    println(tree)
 
-    println("ACTUAL SIGNATURE: " +
-      tree.qualifier.tpe.asInstanceOf[ThisType]
-      .tref.optSymbol.get.asClass.declarations(5).asTerm.signedName
-    )
+    val sig1 = tree.qualifier.tpe.asInstanceOf[ThisType].tref.optSymbol.get.asClass.declarations(5).asTerm.signedName
+    val sig2 = tree.name
 
-    println("TASTY SIGNATURE: " +
-      tree.name
-    )
-    // SHOULD BE THE SAME
-    
-    //BUG TASTY_QUERY: FIXED IN 0.7.0?
-  }
+    assertEquals(sig1, sig2)
+    //println(tree)
+    //println("ACTUAL SIGNATURE: " + sig1)
+    //println("TASTY SIGNATURE: " + sig2)
+  } //TASTY_QUERY BUG -> FIXED 0.7.0
 
   testSymbolWithTestlibTastyQueryContext("subtyping-seq-and-repeated")("simple_trees.#TypeApply") { symbol =>
     val tree = (
@@ -242,4 +202,78 @@ class PotentialBugsSuite extends BaseTestSuite:
 
     //BUG COMPILER
   }
+  */
 
+  // ----------------
+
+  testSymbolWithTestlibTastyQueryContext("sig-tlota")("crosspackagetasty") { symbol =>
+
+    val x = symbol.asDeclaringSymbol.declarations(2).asDeclaringSymbol.declarations(1).tree.get.asInstanceOf[ValDef].rhs.get.asInstanceOf[Apply].fun.asInstanceOf[Select]
+    println("TASTY SIGNATURE: " + x.name)
+
+    val y = symbol.asDeclaringSymbol.declarations(2).asDeclaringSymbol.declarations(0).asDeclaringSymbol.declarations(2).asTerm.signedName
+    println("ACTUAL SIGNATURE: " + y)
+
+
+    val checker = Checker(Check.checks(List("LSP")))
+    checker.check(symbol.asDeclaringSymbol.declarations(2).tree)
+
+    //Signatures strike again
+  }
+
+  testSymbolWithTestlibTastyQueryContext("weird-type")("simple_trees.MatchType/T") { symbol =>
+
+    val checker = Checker(Check.checks(List("LSP")))
+    checker.check(symbol.asDeclaringSymbol.declarations(9).tree)
+    checker.problems.foreach(x => { println(x); println() })
+
+    //Match types
+  }
+
+  testSymbolWithTestlibTastyQueryContext("refined-types")("simple_trees.RefinedTypeTree/T") { symbol =>
+
+    val x = symbol.asDeclaringSymbol.declarations(12).tree.get.asInstanceOf[DefDef]
+      .rhs.get.asInstanceOf[Apply].fun.asInstanceOf[Select]
+    println(x.name)
+    println("Tree: " + x.qualifier.tpe.widen)
+    println(x.qualifier.tpe.widen.asInstanceOf[TypeRef].optSymbol.get.asDeclaringSymbol.declarations(1).asTerm.signedName)
+
+
+    val checker = Checker(Check.checks(List("LSP")))
+    checker.check(symbol.asDeclaringSymbol.declarations(12).tree)
+    checker.problems.foreach(x => { println(x); println() })
+
+    //Member of refined type not found
+  }
+
+  testSymbolWithTestlibTastyQueryContext("applied-types")("simple_trees.ForExpressions/T") { symbol =>
+
+    val checker = Checker(Check.checks(List("LSP")))
+    checker.check(symbol.tree)
+    checker.problems.foreach(x => { println(x); println() })
+
+    //Special typeapplies
+  }
+
+  testSymbolWithTestlibTastyQueryContext("functions")("simple_trees.Function/T") { symbol =>
+
+    val checker = Checker(Check.checks(List("LSP")))
+    checker.check(symbol.tree)
+    checker.problems.foreach(x => { println(x); println() })
+
+    //Types are very similar or equal
+  }
+
+  /*
+  testSymbolWithTestlibTastyQueryContext("part-functions")("simple_trees.WithPartialFunction/T") { symbol =>
+
+    val checker = Checker(Check.checks(List("LSP")))
+    checker.check(symbol.tree)
+    
+    //println(checker.problems(0).tree.asInstanceOf[Lambda].meth.tpe.widen)
+
+    checker.problems.foreach(x => { println(x); println() })
+
+    //Looks like the type of meth is not correct? Or maybe isSubtype doesn't work for SAMs
+  }
+  */

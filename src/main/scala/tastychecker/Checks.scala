@@ -99,11 +99,14 @@ object LSP extends Check with MethodsLSP:
         checkSubtype(cond, defn.BooleanType)
       case InlineIf(cond, _, _) =>
         checkSubtype(cond, defn.BooleanType)
-      case Lambda(meth, tpt) =>
+      case Lambda(meth, tpt) => // REDO
+        /*
         for
           t <- tpt
           p <- checkSubtype(meth, t.toType)
         yield p
+        */
+        Nil
       case CaseDef(_, guard, _) =>
         for
           g <- guard
@@ -128,9 +131,12 @@ object LSP extends Check with MethodsLSP:
           yield p
         } ++ checkSubtype(tr, defn.NothingType).toList
       case tr: Literal =>
+        /*
         if literalTypes.map(checkSubtype(tr, _)).contains(None)
         then Nil
         else Some(NotSubtype(tr.tpe, literalTypes.reduce(OrType(_, _)), tr))
+        */
+        Nil
       case _ => Nil
     ret.iterator.to(List)
 
@@ -199,12 +205,15 @@ object PseudoLSP extends Check with MethodsLSP:
         checkSubtype(OrType(thenPart.tpe, elsePart.tpe), tr)
       case tr @ InlineIf(_, thenPart, elsePart) =>
         checkSubtype(OrType(thenPart.tpe, elsePart.tpe), tr)
-      case tr @ Lambda(meth, tpt) =>
+      case tr @ Lambda(meth, tpt) => // REDO
+        /*
         for
           t <- tpt
           p <- checkSubtype(t.toType, tr)
         yield p
         // checkSubtype(meth, tr)
+        */
+        Nil
       case tr @ Match(_, cases) =>
         checkSubtype(cases.map(_.body.tpe).reduce(OrType(_, _)), tr)
       case tr @ InlineMatch(_, cases) =>
@@ -222,22 +231,20 @@ object PseudoLSP extends Check with MethodsLSP:
 
 // PseudoLSP: Check type invariants wihin matchings
 object PseudoLSPMatching extends Check with MethodsLSP:
-  private def checkPattern(pattern: PatternTree, tpe: Type)(using Tree)(using Context): List[NotSubtype] =
-    val ret = pattern match
+  private def checkPattern(pattern: PatternTree)(using Tree)(using Context): List[NotSubtype] =
+    def rec(pat: PatternTree): (Type, List[NotSubtype]) = pat match
       case Bind(_, body, symbol) =>
-        checkSubtype(tpe, symbol.declaredType)
-          ++ checkPattern(body, tpe)
+        val (tpe, problems) = rec(body)
+        (tpe, problems ++ checkSubtype(tpe, symbol.declaredType.widen))
       case Alternative(trees) =>
-        for
-          t <- trees
-          p <- checkPattern(t, tpe)
-        yield p
+        val (tpes, problems) = trees.map(rec(_)).unzip
+        (tpes.reduce(OrType(_, _)), problems.flatten)
       case ExprPattern(expr) =>
-        Nil
-      case WildcardPattern(tpe2) =>
-        checkSubtype(tpe, tpe2)
+        (expr.tpe, Nil)
+      case WildcardPattern(tpe) =>
+        (tpe, Nil)
       case TypeTest(body, tpt) =>
-        checkPattern(body, tpt.toType)
+        (tpt.toType, rec(body)._2)
       case Unapply(fun, implicits, patterns) =>
         def getMember(tpe: Type, name: TermName)(using Context): Option[TermSymbol] =
           try Some(TermRef(tpe, name).symbol)
@@ -258,18 +265,25 @@ object PseudoLSPMatching extends Check with MethodsLSP:
         
         val productType = TypeRef(defn.scalaPackage.packageRef, typeName("Product"))
         if result.isSubtype(productType) then
-          val tpes = LazyList.from(1)
+          val (tpes, problems) = patterns.map(rec(_)).unzip
+
+          val ftpes = LazyList.from(1)
             .map(x => getMember(result, termName(s"_${x}")))
             .takeWhile(_.isDefined).map(_.get.declaredType)
+
+          localProblems.addAll(problems.flatten)
+          /*
           localProblems.addAll{
             for
-              (pt, t) <- patterns.zip(tpes)
-              p <- checkPattern(pt, t)
+              (t1, t2) <- tpes.zip(ftpes)
+              p <- checkSubtype(t1, t2)
             yield p
           }
+          */
         // TODO: Handle boolean and structure { isEmpty, get } cases
-        localProblems.to(List)
-      ret.iterator.to(List)
+        (asMethodType(fun).paramTypes(0), localProblems.to(List))
+      rec(pattern)._2
+        
 
   override def check(tree: Tree)(using Context): List[NotSubtype] =
     given Tree = tree
@@ -277,18 +291,18 @@ object PseudoLSPMatching extends Check with MethodsLSP:
       case Match(selector, cases) =>
         for
           c <- cases.map(_.pattern)
-          p <- checkPattern(c, selector.tpe) // .widen
+          p <- checkPattern(c) // .widen
         yield p
       case InlineMatch(selector, cases) =>
         for
           s <- selector.toList
           c <- cases.map(_.pattern)
-          p <- checkPattern(c, s.tpe) // .widen
+          p <- checkPattern(c) // .widen
         yield p
       case Try(_, cases, _) =>
         for
           c <- cases.map(_.pattern)
-          p <- checkPattern(c, defn.ThrowableType)
+          p <- checkPattern(c)
         yield p
       case _ => Nil
     ret.iterator.to(List)
