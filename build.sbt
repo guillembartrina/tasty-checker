@@ -4,6 +4,7 @@ ThisBuild / scalaVersion := "3.2.2"
 lazy val root = project
   .in(file("."))
   .dependsOn(testlib_tastyquery % Test)
+  .dependsOn(testlib_dummy % Test)
   .settings(
     name := "tasty-checker",
     description := " Reference checker for TASTy, the Scala 3 interchange format",
@@ -18,11 +19,20 @@ lazy val root = project
     Test / envVars += {     
       "TASTYCHECKER_TESTLIB_TASTYQUERY_PATH" -> (testlib_tastyquery / Compile / classDirectory).value.getAbsolutePath
     },
+    Test / envVars += {     
+      "TASTYCHECKER_TESTLIB_DUMMY_PATH" -> (testlib_dummy / Compile / classDirectory).value.getAbsolutePath
+    },
     fork := true
   )
 
 lazy val testlib_tastyquery = project
   .in(file("src/test/lib/tastyquery"))
+  .settings(
+    publish / skip := true
+  )
+
+lazy val testlib_dummy = project
+  .in(file("src/test/lib/dummy"))
   .settings(
     publish / skip := true
   )

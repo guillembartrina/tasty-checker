@@ -169,15 +169,14 @@ class TastyCheckerSuite extends BaseTestSuite:
   }
   */
 
-  testSymbolWithContext(TestData.testlib_tastyquery_context)("testhello")("hellotest.Hello[$]") { symbol =>
+  testSymbolWithContext(TestData.testlib_dummy_context)("dummy")("dummy.LSP[$].a6") { symbol =>
+    val tree = symbol.tree.get
+    println(tree)
+  }
 
-    println(symbol.asDeclaringSymbol.declarations(3).tree.get.asInstanceOf[ValDef].rhs
-    .get.asInstanceOf[Match].cases(2).pattern)
-
-    val checker = Checker(Check.checks(List("PseudoLSPMatching")))
-    checker.check(symbol.tree)
-    
-    checker.problems.foreach(x => { println(x); println() })
-
-    //Looks like the type of meth is not correct? Or maybe isSubtype doesn't work for SAMs
+  testSymbolWithContext(TestData.testlib_dummy_context)("dummy0")("dummy.LSP[$].a4") { symbol =>
+    val tree = symbol.tree.get.asInstanceOf[ValDef].rhs.get.asInstanceOf[Apply]
+    println(tree.args.map(_.tpe))
+    println(tree.fun.tpe.widen)
+    println(defn.FunctionNClass(tree.args.size).staticRef.appliedTo(tree.args.map(_.tpe.widen) :+ tree.tpe))
   }

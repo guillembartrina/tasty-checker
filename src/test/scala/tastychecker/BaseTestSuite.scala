@@ -35,3 +35,6 @@ class BaseTestSuite extends munit.FunSuite:
       if notexpected.nonEmpty then msg += notexpected.mkString("\nUnexpected problems:\n* ", "\n* ", "")
       if notactual.nonEmpty then msg += notactual.mkString("\nMissing problems:\n* ", "\n* ", "")
       fail(msg)
+
+  protected def assertNoProblems(using munit.Location)(actual: List[Problem]): Unit =
+    assertProblems(actual, List.empty[Problem])
