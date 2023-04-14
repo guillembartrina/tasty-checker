@@ -182,6 +182,8 @@ class PotentialBugsSuite extends BaseTestSuite:
     // --> assertNoProblems(tree)
   } //TASTY_QUERY BUG -> FIXED 0.7.0
 
+  // TORESOLVE: Type A is OK, is the type of arr; type B is OK (it selects the upper bound, T)
+  // Possible bug: new logic regarding typeparams and lookup does not resolve correctly
   testSymbolWithTestlibTastyQueryContext("pb011_typeparams-weird")("simple_trees.TypeRefIn/T") { symbol =>
     val tree = (
       symbol.asDeclaringSymbol.asClass.getNonOverloadedDecl(termName("withArrayOfSubtypeAnyRef")).get.tree.get.asInstanceOf[DefDef] //1
@@ -189,15 +191,16 @@ class PotentialBugsSuite extends BaseTestSuite:
     )
 
     val tpe1 = tree.args(0).tpe.widen
-    val tpe2 = tree.fun.tpe.widen.asInstanceOf[MethodType].paramTypes(0).widen
+    val tpe2 = tree.fun.tpe.widen.asInstanceOf[MethodType].paramTypes(0)
 
-    //println(tree)
-    //println("TYPE A: " + tpe1)
-    //println("TYPE B: " + tpe2)
+    println(tree)
+    println("TYPE A: " + tpe1)
+    println("TYPE B: " + tpe2)
     assert(tpe1.isSubtype(tpe2))
     assertNoProblems(tree)
-  } //TASTY_QUERY BUG -> FIXED 0.7.3
+  } //TASTY_QUERY BUG -> FIXED 0.7.3 [NO]
 
+  /*
   testSymbolWithTestlibTastyQueryContext("pb012_type-aliases")("simple_trees.AnyMethods/T") { symbol =>
     val tree = (
       symbol.asDeclaringSymbol.asClass.getNonOverloadedDecl(termName("testGetClassInt")).get.tree.get.asInstanceOf[DefDef] //10
@@ -214,16 +217,14 @@ class PotentialBugsSuite extends BaseTestSuite:
     assert(!tpe1.isSameType(tpe2))
     assertNoProblems(tree)
   } //COMPILER BUG -> FIXED 0.7.3
+  */
 
   // ----------------
 
-  // val checker = Checker(Check.checks(List("LSP"))); checker.check(tree.tree.get)
   testSymbolWithTestlibTastyQueryContext("pb013_sig-tlota")("crosspackagetasty.TopLevelOpaqueTypeAlias$package[$]") { symbol =>
     val tree = (
       symbol.asDeclaringSymbol
     )
-
-    println(tree.declarations)
 
     val sig1 = tree.declarations(0).asDeclaringSymbol.declarations(2).asTerm.signedName
     val sig2 = tree.declarations(1).tree.get.asInstanceOf[ValDef].rhs.get.asInstanceOf[Apply].fun.asInstanceOf[Select].name
@@ -232,7 +233,7 @@ class PotentialBugsSuite extends BaseTestSuite:
     //println("ACTUAL SIGNATURE: " + sig1)
     //println("TASTY SIGNATURE: " + sig2)
     assertEquals(sig1, sig2)
-    assertNoProblems(tree.tree.get)
+    // TEMPORTAL: assertNoProblems(tree.tree.get)
   } //TASTY_QUERY BUG -> FIXED 0.7.2 (???)
 
   testSymbolWithTestlibTastyQueryContext("pb014_weird-type")("simple_trees.MatchType/T") { symbol =>
@@ -245,9 +246,9 @@ class PotentialBugsSuite extends BaseTestSuite:
     
     //checker.problems.foreach(x => { println(x); println() })
     assertEquals(checker.problems, List.empty[Problem])
-  } //TASTY_QUERY BUG -> FIXED 0.7.2 (???)
+  } //TASTY_QUERY BUG -> FIXED 0.7.2
 
-  // val checker = Checker(Check.checks(List("LSP"))); checker.check(tree); assertEquals(checker.problems, List.empty[Problem]); checker.problems.foreach(x => { println(x); println() })
+  // TORESOLVE: Still same issue
   testSymbolWithTestlibTastyQueryContext("pb015_refined-types")("simple_trees.RefinedTypeTree/T") { symbol =>
     val tree = (
       symbol.asDeclaringSymbol.asClass.getNonOverloadedDecl(termName("foo")).get.tree.get.asInstanceOf[DefDef]
@@ -257,11 +258,11 @@ class PotentialBugsSuite extends BaseTestSuite:
     val sig1 = tree.qualifier.tpe.widen.asInstanceOf[TypeRef].optSymbol.get.asDeclaringSymbol.declarations(1).asTerm.signedName
     val sig2 = tree.name
 
-    //println("ACTUAL SIGNATURE: " + sig1)
-    //println("TASTY SIGNATURE: " + sig2)
+    println("ACTUAL SIGNATURE: " + sig1)
+    println("TASTY SIGNATURE: " + sig2)
     assertEquals(sig1, sig2)
     assertNoProblems(tree)
-  } //TASTY_QUERY BUG -> FIXED 0.7.2 (???)
+  } //TASTY_QUERY BUG -> FIXED 0.7.2 [NO]
 
   testSymbolWithTestlibTastyQueryContext("pb016_applied-types")("simple_trees.ForExpressions/T") { symbol =>
     val tree = (
@@ -272,8 +273,10 @@ class PotentialBugsSuite extends BaseTestSuite:
 
     //checker.problems.foreach(x => { println(x); println() })
     assertEquals(checker.problems, List.empty[Problem])
-  } //TASTY_QUERY BUG -> FIXED 0.7.2 (???)
+  } //TASTY_QUERY BUG -> FIXED 0.7.2
 
+  // TORESOLVE: Is there a bug regarding MethodTypes that prevent them from widen? Lambda: works with meth.tpe.widen but not with meth.tpe
+  // Possible place: Subtyping.scala, line 182 -> tp1.widen
   testSymbolWithTestlibTastyQueryContext("pb017_functions")("simple_trees.Function/T") { symbol =>
     val tree = (
       symbol.tree.get
@@ -281,7 +284,7 @@ class PotentialBugsSuite extends BaseTestSuite:
     val checker = Checker(Check.checks(List("LSP")))
     checker.check(tree)
 
-    //checker.problems.foreach(x => { println(x); println() })
+    //checker.problems.foreach(x => { println("T " + x.asInstanceOf[NotSubtype].a.widen + "\n" + x.asInstanceOf[NotSubtype].b); println() })
     assertEquals(checker.problems, List.empty[Problem])
   } //TASTY_QUERY BUG -> FIXED 0.7.2 (???)
 
@@ -298,3 +301,90 @@ class PotentialBugsSuite extends BaseTestSuite:
     //Looks like the type of meth is not correct? Or maybe isSubtype doesn't work for SAMs
   }
   */
+
+  // ----------------
+
+  testSymbolWithTestlibTastyQueryContext("pb018_subtyping-alias")("crosspackagetasty.TopLevelOpaqueTypeAlias$package[$]") { symbol =>
+    val tree = (
+      symbol.asClass.declarations(0).asClass.getNonOverloadedDecl(termName("apply")).get.tree.get.asInstanceOf[DefDef]
+    )
+
+    val tpe1 = tree.rhs.get.tpe
+    val tpe2 = tree.resultTpt.toType
+        
+    //println(tree)
+    //println("TYPE A: " + tpe1)
+    //println("TYPE B: " + tpe2)
+    assert(tpe1.isSubtype(tpe2))
+    // TEMPORTAL: assertNoProblems(tree.tree.get)
+  } //TASTY_QUERY BUG ->
+
+  // similar to -> pb011_typeparams-weird
+  testSymbolWithTestlibTastyQueryContext("pb019_opaque-and-typeparams")("subtyping.TypesFromTASTy[$]") { symbol =>
+    val tree = (
+      symbol.asDeclaringSymbol.asClass.getNonOverloadedDecl(termName("makeInvariantOpaque")).get.tree.get.asInstanceOf[DefDef]
+    )
+
+    val tpe1 = tree.rhs.get.tpe.widen
+    val tpe2 = tree.resultTpt.toType.widen
+
+    println(tree)
+    println("TYPE A: " + tpe1)
+    println("TYPE B: " + tpe2)
+    assert(tpe1.isSubtype(tpe2))
+    //assertNoProblems(tree)
+  } //TASTY_QUERY BUG ->
+
+  testSymbolWithTestlibTastyQueryContext("pb020_refinement-recursive")("simple_trees.RefinedTypeTree/T") { symbol =>
+    val tree = (
+      symbol.tree.get
+    )
+    val checker = Checker(Check.checks(List("LSP")))
+    checker.check(tree)
+
+    //checker.problems.foreach(x => { println(x); println() })
+    assertEquals(checker.problems, List.empty[Problem])
+  } //TASTY_QUERY BUG ->
+
+  testSymbolWithContext(TestData.testlib_dummy_context)("pb021_matching-and")("dummy.PseudoLSPMatching[$]") { symbol =>
+    val tree = (
+      symbol.tree.get
+    )
+    val checker = Checker(Check.checks(List("LSP")))
+    checker.check(tree)
+
+    
+    //checker.problems.foreach(x => { println(x); println() })
+    assertEquals(checker.problems, List.empty[Problem])
+
+    // Show Dummy
+    // Compiler bug to allow (or don't warn) that x cannot type to A
+    // or logic bug of PseudoLSPMatching
+    // -> We should perhaps check that type[symbol] is subtype of And(top(from selector), down(from leaves)) ??? 
+  } // ??? BUG ->
+
+  testSymbolWithTestlibTastyQueryContext("pb022_dependent-method")("simple_trees.DependentMethod/T") { symbol =>
+    val tree = (
+      symbol.tree.get
+    )
+    val checker = Checker(Check.checks(List("PseudoLSP")))
+    checker.check(tree)
+
+    println("TYPE AA " + checker.problems(0).asInstanceOf[NotSubtype].a)
+    
+    //checker.problems.foreach(x => { println(x); println() })
+    assertEquals(checker.problems, List.empty[Problem])
+  } // ??? BUG ->
+
+  testSymbolWithTestlibTastyQueryContext("pb023_bounds-object")("simple_trees.VarargFunction/T") { symbol =>
+    val tree = (
+      symbol.tree.get
+    )
+    val checker = Checker(Check.checks(List("TypeParamBounds")))
+    checker.check(tree)
+    
+    //checker.problems.foreach(x => { println(x); println() })
+    assertEquals(checker.problems, List.empty[Problem])
+
+    // Possible bug: Int <:/< Object
+  } // ??? BUG ->

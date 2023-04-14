@@ -31,18 +31,6 @@ class Person(val x: C)
 object Person:
 	def unapply(per: Person): Option[B] = Some(per.x)
 
-object Test {
-  val x: Seq[Int] = Seq()
-
-  val y = (12: Any) match {
-    case x @ (_: Boolean | _: String) => x
-    case x @ 5 => 0
-    case Person(x) => 12
-  }
-
-  val z: Any = 34
-}
-
 object LSP {
   val a1 = 12 match {
     case x if ((x%2 == 0): Boolean & AnyVal) => 0
@@ -62,6 +50,15 @@ object LSP {
     def print(x: Seq[Int]): Unit
 
   val a6: Printer = (x: Seq[Any]) => ()
+}
+
+object PseudoLSPMatching {
+  val y = (12: Any) match {
+    case x @ (_: Boolean | _: String) => x
+    case x @ 5 => 0
+    case 10: Int => 1
+    case j @ Person(x: A) => 12
+  }
 }
 
 // -----------

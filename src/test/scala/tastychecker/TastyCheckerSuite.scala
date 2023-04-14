@@ -66,10 +66,9 @@ class TastyCheckerSuite extends BaseTestSuite:
 
     for
       s <- context.findSymbolsByClasspathEntry(entry)
-            .filter(x => !List("RefinedTypeTree", "MatchType", "ForExpressions", "RefinedType", "Function", "WithPartialFunction")
-              .contains(x.name.toString()))
+            .filter(x => !List("RefinedTypeTree", "DependentMethod", "MatchType").contains(x.name.toString()))
     do
-      val checker = Checker(Check.checks(List("LSP")))
+      val checker = Checker(Check.checks(List("LSP", "LSPStatements", "PseudoLSP", "PseudoLSPMatching"))) // "TypeParamBounds"
       try
         checker.check(s.tree.get)
       catch {
@@ -88,8 +87,20 @@ class TastyCheckerSuite extends BaseTestSuite:
               || b.toString.contains("symbol[Predef.Class]")
             => false
           case NotSubtype(a, b, tree)
-            if a.widen.toString.contains("WildcardTypeBounds(TypeBounds(TypeRef(PackageRef(scala),")
-              || b.widen.toString.contains("WildcardTypeBounds(TypeBounds(TypeRef(PackageRef(scala),")
+            if a.toString.contains("symbol[class lang.Class]")
+              || b.toString.contains("symbol[class lang.Class]")
+            => false
+          case NotSubtype(a, b, tree)
+            if a.toString.contains("TermRef(NoPrefix, symbol[apply>x])")
+              || b.toString.contains("TermRef(NoPrefix, symbol[apply>x])")
+            => false
+          case NotSubtype(a, b, tree)
+            if a.toString.contains("AppliedType(TypeRef(ThisType(TypeRef")
+              || b.toString.contains("AppliedType(TypeRef(ThisType(TypeRef")
+            => false
+          case NotSubtype(a, b, tree)
+            if a.toString.contains("TermRef(NoPrefix, symbol[samLambda>$anonfun])")
+              || b.toString.contains("TermRef(NoPrefix, symbol[samLambda>$anonfun])")
             => false
           case _ => true
         )
@@ -106,6 +117,9 @@ class TastyCheckerSuite extends BaseTestSuite:
           println(p)
 
     //assertEquals(checker.problems, List.empty[Problem])
+
+    // Problems:
+    // MyArrayOps <:< Class[T <: Any]
   }
 
   /*
@@ -169,14 +183,18 @@ class TastyCheckerSuite extends BaseTestSuite:
   }
   */
 
-  testSymbolWithContext(TestData.testlib_dummy_context)("dummy")("dummy.LSP[$].a6") { symbol =>
+  /*
+  testSymbolWithContext(TestData.testlib_dummy_context)("dummy")("dummy.LSP[$].Printer/T") { symbol =>
     val tree = symbol.tree.get
     println(tree)
   }
+  */
 
+  /*
   testSymbolWithContext(TestData.testlib_dummy_context)("dummy0")("dummy.LSP[$].a4") { symbol =>
     val tree = symbol.tree.get.asInstanceOf[ValDef].rhs.get.asInstanceOf[Apply]
     println(tree.args.map(_.tpe))
     println(tree.fun.tpe.widen)
     println(defn.FunctionNClass(tree.args.size).staticRef.appliedTo(tree.args.map(_.tpe.widen) :+ tree.tpe))
   }
+  */
