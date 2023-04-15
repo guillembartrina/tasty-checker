@@ -89,7 +89,8 @@ object LSP extends Check with MethodsLSP:
         // TODO: Finish, remove temporal fix
         if tpt.isDefined && tpt.get.toType.widen.isInstanceOf[AppliedType] then return Nil
         def getSAMType(tpe: Type): Type =
-          val sams = tpe.asInstanceOf[TypeRef].optSymbol.get.asClass.declarations.filter(x => x.flags.is(Abstract)).map(_.asTerm)
+          val sams = tpe.asInstanceOf[TypeRef].optSymbol.get.asClass.declarations
+            .filter(x => x.flags.is(Abstract) && x.name != nme.Constructor).map(_.asTerm)
           if sams.size == 1
           then sams.head.declaredType
           else sams.find(_.name == termName("apply")).get.declaredType
@@ -99,7 +100,7 @@ object LSP extends Check with MethodsLSP:
         yield p
       case Return(expr, from) =>
         for
-          e <- expr.toList
+          e <- expr
           p <- checkSubtype(e, from.declaredType.asInstanceOf[MethodType].resultType)
         yield p
       case SeqLiteral(elems, elempt) =>
