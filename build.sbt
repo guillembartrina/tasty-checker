@@ -3,6 +3,7 @@ ThisBuild / scalaVersion := "3.2.2"
 
 lazy val root = project
   .in(file("."))
+  .dependsOn(test_auxiliar % Test)
   .dependsOn(testlib_tastyquery % Test)
   .dependsOn(testlib_dummy % Test)
   .settings(
@@ -17,12 +18,21 @@ lazy val root = project
       "TASTYCHECKER_DEFAULTCLASSPATH" -> Attributed.data((Compile / fullClasspath).value).map(_.getAbsolutePath).mkString(";")
     },
     Test / envVars += {     
+      "TASTYCHECKER_TEST_AUXILIAR_PATH" -> (test_auxiliar / Compile / classDirectory).value.getAbsolutePath
+    },
+    Test / envVars += {     
       "TASTYCHECKER_TESTLIB_TASTYQUERY_PATH" -> (testlib_tastyquery / Compile / classDirectory).value.getAbsolutePath
     },
     Test / envVars += {     
       "TASTYCHECKER_TESTLIB_DUMMY_PATH" -> (testlib_dummy / Compile / classDirectory).value.getAbsolutePath
     },
     fork := true
+  )
+
+lazy val test_auxiliar = project
+  .in(file("src/test/scala/tastychecker/auxiliar"))
+  .settings(
+    publish / skip := true
   )
 
 lazy val testlib_tastyquery = project

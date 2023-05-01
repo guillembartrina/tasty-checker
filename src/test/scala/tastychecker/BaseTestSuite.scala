@@ -24,7 +24,8 @@ class BaseTestSuite extends munit.FunSuite:
     }
 
   protected val testSymbolWithBaseContext = testSymbolWithContext(TestData.base_context)
-  
+
+
   protected def assertProblems(using munit.Location)(actual: List[Problem], expected: List[Problem]): Unit =
     val as = actual.toSet.map(_.toString)
     val es = expected.toSet.map(_.toString)

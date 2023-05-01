@@ -15,6 +15,11 @@ object TestData:
   val extra_classpath = ClasspathLoaders.read(extra_paths)
   val base_context = Contexts.init(extra_classpath)
 
+  val test_auxiliar_path: Path =
+    Paths.get(sys.env.get("TASTYCHECKER_TEST_AUXILIAR_PATH").get)
+  val test_auxiliar_classpath = ClasspathLoaders.read(List(test_auxiliar_path))
+  val test_auxiliar_context = Contexts.init(test_auxiliar_classpath ++ extra_classpath)
+
   val testlib_tastyquery_path: Path =
     Paths.get(sys.env.get("TASTYCHECKER_TESTLIB_TASTYQUERY_PATH").get)
   val testlib_tastyquery_classpath = ClasspathLoaders.read(List(testlib_tastyquery_path))
