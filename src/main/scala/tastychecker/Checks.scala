@@ -17,11 +17,9 @@ abstract class Check:
 object Check:
   private val _checks: Map[String, Check] =
     List(
-      LSP,
-      LSPStatements,
-      PseudoLSP,
-      PseudoLSPMatching,
-      TypeParamBounds
+      ExprTypeConformance,
+      ExprTypeRules,
+      TypeBoundsConformance
     ).map(x => (x.name, x)).toMap
 
   def checks(names: List[String]): List[Check] =
@@ -34,182 +32,161 @@ object Check:
 
 
 // -------------------------------------------------------
-// LSP
+// ExprTypeConformance: Checks that expressions conform to the expected type
+object ExprTypeConformance extends Check:
+  protected def conformsType(term: TermTree, tpe: Type)(using tree: Tree)(using Context): Option[NotConformsType] =
+    if term.tpe.isSubtype(tpe) then None else Some(NotConformsType(term.tpe, tpe, tree))
 
-trait MethodsLSP:
-  protected def checkSubtype(tpea: Type, tpeb: Type)(using tree: Tree)(using Context): Option[NotSubtype] =
-    if tpea.isSubtype(tpeb) then None else Some(NotSubtype(tpea, tpeb, tree))
-
-  protected def checkSubtype(terma: TermTree, termb: TermTree)(using Tree)(using Context): Option[NotSubtype] =
-    checkSubtype(terma.tpe, termb.tpe)
-
-  protected def checkSubtype(tpe: Type, term: TermTree)(using Tree)(using Context): Option[NotSubtype] =
-    checkSubtype(tpe, term.tpe)
-
-  protected def checkSubtype(term: TermTree, tpe: Type)(using Tree)(using Context): Option[NotSubtype] =
-    checkSubtype(term.tpe, tpe)
-
-
-// LSP: Check explicit/fixed/constant types
-object LSP extends Check with MethodsLSP:
-  override def check(tree: Tree)(using Context): List[NotSubtype] =
+  override def check(tree: Tree)(using Context): List[NotConformsType] =
     given Tree = tree
     val ret = tree match
+      case Template(_, _, _, body) =>  //Necessary?
+        for case t: TermTree <- body; p <- conformsType(t, defn.AnyType) yield p
       case CaseDef(_, guard, _) =>
-        for
-          g <- guard
-          p <- checkSubtype(g, defn.BooleanType)
-        yield p
+        for g <- guard; p <- conformsType(g, defn.BooleanType) yield p
       case ValDef(_, tpt, rhs, _) =>
-        for
-          r <- rhs
-          p <- checkSubtype(r, tpt.toType)
-        yield p
+        for r <- rhs; p <- conformsType(r, tpt.toType) yield p
       case DefDef(_, _, resultTpt, rhs, _) =>
-        for
-          r <- rhs
-          p <- checkSubtype(r, resultTpt.toType)
-        yield p
+        for r <- rhs; p <- conformsType(r, resultTpt.toType) yield p
       case Apply(fun, args) =>
-        def cleanParamType(ptpe: Type): Type = ptpe match
-          case ptpe: ByNameType => ptpe.underlying
-          case _ => ptpe
-        val paramTypes = fun.tpe.widen.asInstanceOf[MethodType].paramTypes.map(cleanParamType)
-        for
-          (a, ptpe) <- args.zip(paramTypes)
-          p <- checkSubtype(a, ptpe)
-        yield p
+        val instMeth = fun.tpe.widen.asInstanceOf[MethodType]  //TODO: .instantiate(args.map(_.tpe)).widen.asInstanceOf[MethodType]
+        def cleanParamType(tpe: Type): Type = tpe match
+          case tpe: ByNameType => tpe.underlying
+          case _ => tpe
+        val paramTypes = instMeth.paramTypes.map(cleanParamType)
+        for (a, tpe) <- args.zip(paramTypes); p <- conformsType(a, tpe) yield p
       case Assign(lhs, rhs) =>
-        checkSubtype(rhs, lhs.tpe.widen)
+        conformsType(rhs, lhs.tpe.widen)
+      case Block(stats, _) =>  //Necessary?
+        for case t: TermTree <- stats; p <- conformsType(t, defn.AnyType) yield p
       case If(cond, _, _) =>
-        checkSubtype(cond, defn.BooleanType)
+        conformsType(cond, defn.BooleanType)
       case InlineIf(cond, _, _) =>
-        checkSubtype(cond, defn.BooleanType)
+        conformsType(cond, defn.BooleanType)
+      case InlineMatch(selector, _) =>  //Necessary?
+        for s <- selector; p <- conformsType(s, defn.AnyType) yield p  //Future: defn.MatchableType
+      /*
       case Lambda(meth, tpt) =>
-        // TODO: Finish, remove temporal fix
-        if tpt.isDefined && tpt.get.toType.widen.isInstanceOf[AppliedType] then return Nil
-        def getSAMType(tpe: Type): Type =
-          val sams = tpe.asInstanceOf[TypeRef].optSymbol.get.asClass.declarations
-            .filter(x => x.flags.is(Abstract) && x.name != nme.Constructor).map(_.asTerm)
-          if sams.size == 1
-          then sams.head.declaredType
-          else sams.find(_.name == termName("apply")).get.declaredType
+        def getSAMName(tpe: Type): TermName =
+          def classSymbol(tpe: Type): ClassSymbol = tpe.widen match
+            case tpe: TypeRef =>
+              tpe.optSymbol.orElse(Some(classSymbol(tpe.optAliasedType.get))).get.asClass
+            case tpe: TypeProxy =>
+              classSymbol(tpe.superType)
+          val s = classSymbol(tpe)
+          val candidates = s.declarations.filter(x => x.flags.is(Abstract) && x.name != nme.Constructor).map(_.asTerm)
+          if candidates.length == 1 then candidates.head.name else termName("apply")  //Special case: PartialFunction
+          
         for
-          tpt <- tpt
-          p <- checkSubtype(meth, getSAMType(tpt.toType.widen))
-        yield p
+          tpt <- tpt;
+          tpe = tpt.toType;
+          meth = tpe.widen.lookupMember(getSAMName(tpe)).get.widen.asInstanceOf[MethodType]
+        do
+          println(meth)        
+        //p <- conformsType(meth.tpe.widen, getSAMType(tpt.toType.widen)) yield p
+        //if tpt.isDefined then println("NAME" + getSAMName(tpt.get.toType))
+        Nil
+      */
+      case Match(selector, _) =>  //Necessary?
+        conformsType(selector, defn.AnyType)  //Future: defn.MatchableType
       case Return(expr, from) =>
-        for
-          e <- expr
-          p <- checkSubtype(e, from.declaredType.asInstanceOf[MethodType].resultType)
-        yield p
-      case SeqLiteral(elems, elempt) =>
-        for
-          el <- elems
-          p <- checkSubtype(el, elempt.toType)
-        yield p
-      case Super(qual, mix) =>
-        for
-          tpt <- mix
-          p <- checkSubtype(qual, tpt.toType)
-        yield p
+        val meth = from.declaredType.asInstanceOf[MethodType]
+        for e <- expr; p <- conformsType(e, meth.resultType) yield p
+      case SeqLiteral(elems, elemtpt) =>
+        for e <- elems; p <- conformsType(e, elemtpt.toType) yield p
       case Throw(expr) =>
-        checkSubtype(expr, defn.ThrowableType)
+        conformsType(expr, defn.ThrowableType)
+      case Try(expr, _, finalizer) =>  //Necessary?
+        conformsType(expr, defn.AnyType) ++ (for f <- finalizer; p <- conformsType(f, defn.UnitType) yield p)
       case Typed(expr, tpt) =>
-        if tpt.toType.isOfClass(defn.RepeatedParamClass)
-        then checkSubtype(expr, defn.SeqTypeOf(tpt.toType.asInstanceOf[AppliedType].args(0)))
-        else checkSubtype(expr, tpt.toType)
-      case While(cond, _) =>
-        checkSubtype(cond, defn.BooleanType)
+        val tpe = tpt.toType
+        if tpe.isOfClass(defn.RepeatedParamClass)
+        then conformsType(expr, defn.SeqTypeOf(tpe.asInstanceOf[AppliedType].args(0)))
+        else conformsType(expr, tpe)
+      case While(cond, body) =>
+        conformsType(cond, defn.BooleanType) ++ conformsType(body, defn.UnitType)
       case _ => Nil
     ret.iterator.to(List)
 
-// LSP: Check statement types (Any)
-object LSPStatements extends Check with MethodsLSP:
-  protected def checkAny(term: TermTree)(using tree: Tree)(using Context): Option[NotSubtype] =
-    checkSubtype(term, defn.AnyType)
+// -------------------------------------------------------
+// ExprTypeRules: Checks that expressions follow the typing rules
+object ExprTypeRules extends Check:
+  protected def matchesType(term: TermTree, tpe: Type)(using tree: Tree)(using Context): Option[NotMatchesType] =
+    if term.tpe.isSameType(tpe) then None else Some(NotMatchesType(term.tpe, tpe, tree))
 
-  override def check(tree: Tree)(using Context): List[NotSubtype] =
+  override def check(tree: Tree)(using Context): List[NotMatchesType] =
     given Tree = tree
     val ret = tree match
-      case Template(_, _, _, body) =>
-        for
-          case b: TermTree <- body
-          p <- checkAny(b)
-        yield p
-      case Block(stats, _) =>
-        for
-          case s: TermTree <- stats
-          p <- checkAny(s)
-        yield p
-      case Match(selector, _) =>
-        checkAny(selector)
-      case InlineMatch(selector, _) =>
-        for
-          s <- selector
-          p <- checkAny(s)
-        yield p
-      case Try(expr, _, finalizer) =>
-        checkAny(expr) ++ {
-          for
-            f <- finalizer
-            p <- checkAny(f)
-          yield p
-        }
-      case While(_, body) =>
-        checkAny(body)
-      case _ => Nil
-    ret.iterator.to(List)
-
-// PseudoLSP: Other LSP invariants (top-down)
-object PseudoLSP extends Check with MethodsLSP:
-  override def check(tree: Tree)(using Context): List[NotSubtype] =
-    given Tree = tree
-    val ret = tree match
-      case tr @ Apply(fun, _) =>
-        @tailrec
-        def isApplyNew(tree: TermTree)(using Context): Boolean = tree match
+      case tr @ Apply(fun, args) =>
+        @tailrec def isApplyNew(tree: TermTree)(using Context): Boolean = tree match
           case Apply(fn, _) => isApplyNew(fn)
           case TypeApply(fn, _) => isApplyNew(fn)
           case Block(_, expr) => isApplyNew(expr)
           case Select(New(_), SignedName(nme.Constructor, _, _)) => true
           case _ => false
         if !isApplyNew(tr)
-        then checkSubtype(fun.tpe.widen.asInstanceOf[MethodType].resultType, tr)
+        then
+          val instResultType = fun.tpe.widen.asInstanceOf[MethodType].instantiate(args.map(_.tpe))
+          matchesType(tr, instResultType)
         else None
+      case tr @ Assign(_, _) =>
+        matchesType(tr, defn.UnitType)
       case tr @ Block(_, expr) =>
-        checkSubtype(expr, tr)
+        matchesType(tr, expr.tpe)
       case tr @ If(_, thenPart, elsePart) =>
-        checkSubtype(thenPart, tr) ++ checkSubtype(elsePart, tr)
+        matchesType(tr, OrType(thenPart.tpe, elsePart.tpe))
       case tr @ InlineIf(_, thenPart, elsePart) =>
-        checkSubtype(thenPart, tr) ++ checkSubtype(elsePart, tr)
+        matchesType(tr, OrType(thenPart.tpe, elsePart.tpe))
       case tr @ InlineMatch(_, cases) =>
-        for
-          c <- cases
-          p <- checkSubtype(c.body, tr)
-        yield p
+        matchesType(tr, cases.map(_.body.tpe).reduce(OrType(_, _)))
+      case tr @ Ident(_) =>  //???
+        matchesType(tr, tr.tpe)
       case tr @ Inlined(expr, _, _) =>
-        checkSubtype(expr, tr)
+        matchesType(tr, expr.tpe)
+      case tr @ Lambda(meth, tpt) =>
+        if tpt.isDefined
+        then matchesType(tr, tpt.get.toType)
+        else None  //TODO
+      case tr @ Literal(constant) =>
+        matchesType(tr, ConstantType(constant))
       case tr @ Match(_, cases) =>
-        for
-          c <- cases
-          p <- checkSubtype(c.body, tr)
-        yield p
+        matchesType(tr, cases.map(_.body.tpe).reduce(OrType(_, _)))
       case tr @ NamedArg(_, arg) =>
-        checkSubtype(arg, tr)
+        matchesType(tr, arg.tpe)
+      case tr @ New(tpt) =>
+        matchesType(tr, tpt.toType)
+      case tr @ Return(_, _) =>
+        matchesType(tr, defn.NothingType)
+      /*
+      case tr @ Select(qualifier, name) =>  //???
+        matchesType()
+      */
+      case tr @ SeqLiteral(_, elemtpt) =>
+        matchesType(tr, defn.SeqTypeOf(elemtpt.toType))
+      /*
+      case tr @ Super(qual, mix) =>  //???
+        matchesType(tr, SuperType(qual.tpe.asInstanceOf[ThisType].cls, mix.map(_.toType)))
+      */
+      case tr @ This(qualifier) =>  //???
+        qualifier.toType match
+          case pkg: PackageRef => matchesType(tr, pkg)
+          case tpe: TypeRef => matchesType(tr, ThisType(tpe))
+          case _ => None
+      case tr @ Throw(_) =>
+        matchesType(tr, defn.NothingType)
       case tr @ Try(expr, cases, _) =>
-        checkSubtype(expr, tr) ++
-        {
-          for
-            c <- cases
-            p <- checkSubtype(c.body, tr)
-          yield p
-        }
+        matchesType(tr, cases.map(_.body.tpe).foldLeft(expr.tpe)(OrType(_, _)))
+      case tr @ Typed(_, tpt) =>
+        matchesType(tr, tpt.toType)
+      case tr @ While(_, _) =>
+        matchesType(tr, defn.UnitType)
       case _ => Nil
     ret.iterator.to(List)
 
-// PseudoLSPMatching: LSP invariants within matchings
-object PseudoLSPMatching extends Check with MethodsLSP:
+/*
+// REDO
+// PatternTypeRules: Checks that patterns in matchings follow the typing rules
+object PatternTypeRules extends Check:
   private def checkPattern(pattern: PatternTree)(using Tree)(using Context): List[NotSubtype] =
     def rec(pat: PatternTree): (Type, List[NotSubtype]) =
       given Tree = pat
@@ -252,15 +229,15 @@ object PseudoLSPMatching extends Check with MethodsLSP:
         yield p
       case _ => Nil
     ret.iterator.to(List)
+*/
 
 // -------------------------------------------------------
-// TypeParamBounds
+// TypeBoundsConformance: Checks that type parameters conform to bounds
+object TypeBoundsConformance extends Check:
+  private def checkBounds(tpe: TypeTree, bounds: TypeBounds)(using tree: Tree)(using Context): Option[NotConformsBounds] =
+    if bounds.contains(tpe.toType) then None else Some(NotConformsBounds(tpe.toType, bounds, tree))
 
-object TypeParamBounds extends Check:
-  private def checkBounds(tpe: TypeTree, bounds: TypeBounds)(using tree: Tree)(using Context): Option[NotConformsToBounds] =
-    if bounds.contains(tpe.toType) then None else Some(NotConformsToBounds(tpe.toType, bounds, tree))
-
-  override def check(tree: Tree)(using Context): List[NotConformsToBounds] =
+  override def check(tree: Tree)(using Context): List[NotConformsBounds] =
     given Tree = tree
     tree match
       case TypeApply(fun, args) =>
