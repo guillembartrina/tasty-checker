@@ -13,50 +13,52 @@ import tastyquery.Types.*
 
 class DummyTestSuite extends BaseTestSuite:
 
-  testSymbolWithContext(TestData.testlib_dummy_context)("dummy")("dummy.TypeParamBoundsConformance[$]") { symbol =>
-    val s = symbol.asClass.getDecl(termName("tp6")).get
+  testSymbolWithContext(TestData.testlib_dummy_context)("dummy")("dummy.Dummy[$]") { symbol =>
+    //val s = symbol.asClass.getDecl(termName("xxx")).get
+    val s = symbol.asClass.getNonOverloadedDecl(termName("applyAux74")).get
+
     val t = s.tree.get
     println("TREE " + t + "\n")
-    val tp = t.asInstanceOf[ValDef].rhs.get
-    println("Type " + tp.tpe)
 
-    //val tp2 = t.asInstanceOf[ValDef].rhs.get.asInstanceOf[Apply].fun
-    //println(tp2.tpe)
-    //println(tp2.tpe.widen)
+    //ValDef
+    //val tp = t.asInstanceOf[ValDef]
+    //println("rhs:  " + tp.rhs.get)
+    //println("type rhs:  " + tp.rhs.get.tpe)
+    //println("tpe:  " + tp.tpt.toType)
+    //println("tpe:  " + tp.tpt.toType.asInstanceOf[AppliedType].superType)
+    //println("tpe:  " + tp.rhs.get.tpe.isSubtype(tp.tpt.toType))
 
-    //val tp2 = t.asInstanceOf[ValDef].rhs.get.asInstanceOf[Block].expr.asInstanceOf[Assign].lhs
-    //println(tp2.tpe)
-    //println(tp2.tpe.widen)
+    //DefDef
+    //val tp = t.asInstanceOf[DefDef]
+    //println("rhs:  " + tp.rhs.get.tpe)
 
-    //val s = symbol.asClass.getNonOverloadedDecl(termName("inlineMatchAux")).get
-    //val t = s.tree.get
-    //println(t)
-    //val tp1 = t.asInstanceOf[DefDef].rhs.get.tpe
-    //println(tp1)
-    //val tp2 = s.declaredType
-    //println(tp2)
+    //>Block
+    //val tpp = tp.rhs.get.asInstanceOf[Block].expr
+    //println("TYPE " + tpp.tpe)
 
-    val checker = Checker(Check.checks(List("TypeBoundsConformance")))
-    checker.check(t)
+    //>Apply
+    //val tpp = tp.rhs.get.asInstanceOf[Apply].fun
+    //println("TYPE " + tpp.tpe)
+
+    //>Match
+    //val tpp = tp.rhs.get.asInstanceOf[Match]
+    //println("selector: " + tpp.selector.tpe.widen)
+    //for c <- tpp.cases do
+    //  println("[case] " + c.pattern + " # " + c.body.tpe)
+    //  //c.pattern.print
+    //  //println(c.pattern.asInstanceOf[TypeTest].body.asInstanceOf[Bind].symbol.declaredType)
+
+    val checker = Checker(Check.allChecks, currentFilter)
+    checker.check(symbol.tree.get)
     println("PROBLEMS:\n" + checker.problems)
   }
 
   /*
-  testSymbolWithContext(TestData.testlib_dummy_context)("dummy")("dummy.ExpressionTypeConformance[$]") { symbol =>
-    val tree = symbol.asClass.getDecl(termName("pat")).get
-    //val tree = symbol.asClass.getDecl(termName("test")).get.tree.get
-    //val tree = symbol.asClass.getNonOverloadedDecl(termName("ss")).get
-    //val aux = tree.asInstanceOf[ValDef].rhs.get.asInstanceOf[Block].expr
-    println(tree.tree)
-    //println(aux.tpe.widen)
-  }
-  */
-
-  /*
-  testSymbolWithContext(TestData.testlib_dummy_context)("dummy0")("dummy.LSP[$].a4") { symbol =>
-    val tree = symbol.tree.get.asInstanceOf[ValDef].rhs.get.asInstanceOf[Apply]
-    println(tree.args.map(_.tpe))
-    println(tree.fun.tpe.widen)
-    println(defn.FunctionNClass(tree.args.size).staticRef.appliedTo(tree.args.map(_.tpe.widen) :+ tree.tpe))
+  testSymbolWithContext(TestData.testlib_dummy_context)("dummy1")("dummy.TypeMemberBoundsConformance[$].TMBL/T") { symbol =>
+    println(Check.checks("TypeMemberBoundsConformance" :: Nil))
+    println(symbol.tree.get)
+    val checker = Checker(Check.checks("TypeMemberBoundsConformance" :: Nil))
+    checker.check(symbol.tree.get)
+    println("PROBLEMS:\n" + checker.problems)
   }
   */

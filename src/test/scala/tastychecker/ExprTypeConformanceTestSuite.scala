@@ -17,6 +17,7 @@ class ExprTypeConformanceTestSuite extends BaseTestSuite:
     given Context = TestData.test_auxiliar_context
 
     val defaultTermName: TermName = termName("termName")
+    val defaultTypeName: TypeName = typeName("typeName")
     val defaultTermSymbol: TermSymbol = defn.Any_toString
     val defaultTypeTree: TypeTree = TypeIdent(typeName("Int"))(defn.IntType)(NoSpan)
     val defaultTermTree: TermTree = Literal(Constant(0))(NoSpan)
@@ -24,25 +25,30 @@ class ExprTypeConformanceTestSuite extends BaseTestSuite:
 
     private def getTerm(c: ClassSymbol)(n: String): TermSymbol = c.getMember(termName(n)).get
     private def getMeth(c: ClassSymbol)(n: String): TermSymbol = c.getNonOverloadedDecl(termName(n)).get
+    private def getType(c: ClassSymbol)(n: String): TypeSymbol = c.getMember(typeName(n)).get
     private def decomposeValDef(t: TermSymbol): (Type, TypeTree, TermTree) =
       val tree = t.tree.get.asInstanceOf[ValDef]
       (tree.tpt.toType, tree.tpt, tree.rhs.get)
+    private def createIdent(t: TermSymbol): Ident = Ident(t.name)(TermRef(NoPrefix, t))(NoSpan)
+    private def createTypeIdent(t: TypeSymbol): TypeIdent = TypeIdent(t.name)(TypeRef(NoPrefix, t))(NoSpan)
 
     val auxiliarPackage: PackageSymbol = defn.RootPackage.getPackageDecl(Names.termName("auxiliar")).get
     val constructsClass: ClassSymbol = auxiliarPackage.getDecl(Names.moduleClassName("Constructs")).get.asClass
 
     val getTermFromConstructs = getTerm(constructsClass)
     val getMethFromConstructs = getMeth(constructsClass)
+    val getTypeFromConstructs = getType(constructsClass)
 
-    //val (anyKindType, anyKindTypeTree, _) = (defn.AnyKindType, TypeIdent(typeName("AnyKind"))(defn.AnyKindType)(NoSpan), null)
+    val anyKindFull @ (anyKindType, anyKindTypeTree, anyKindTermTree) = (
+      defn.AnyKindType,
+      TypeWrapper(defn.AnyKindType)(NoSpan),
+      New(TypeWrapper(defn.AnyKindType)(NoSpan))(NoSpan)
+      )  // Hack
     val anyFull @ (anyType, anyTypeTree, anyTermTree) = decomposeValDef(getTermFromConstructs("any"))
     val anyValFull @ (anyValType, anyValTypeTree, anyValTermTree) = decomposeValDef(getTermFromConstructs("anyVal"))
     val booleanFull @ (booleanType, booleanTypeTree, booleanTermTree) = decomposeValDef(getTermFromConstructs("boolean"))
     val _falseFull @ (_falseType, _falseTypeTree, _falseTermTree) = decomposeValDef(getTermFromConstructs("_false"))
     val stringFull @ (stringType, stringTypeTree, stringTermTree) = decomposeValDef(getTermFromConstructs("string"))
-
-    val methodBooleanToBooleanTermSymbol = getMethFromConstructs("methodBooleanToBoolean")
-    val funBooleanToBooleanTermTree = decomposeValDef(getTermFromConstructs("funBooleanToBoolean"))._3.asInstanceOf[Apply].fun
 
     val anyRefFull @ (anyRefType, anyRefTypeTree, anyRefTermTree) = decomposeValDef(getTermFromConstructs("anyRef"))
     val throwableFull @ (throwableType, throwableTypeTree, throwableTermTree) = decomposeValDef(getTermFromConstructs("throwable"))
@@ -58,48 +64,31 @@ class ExprTypeConformanceTestSuite extends BaseTestSuite:
         AppliedTypeTree(TypeIdent(Names.typeName("<repeated>"))(defn.RepeatedTypeUnapplied)(NoSpan), List(booleanTypeTree))(NoSpan))(NoSpan)
     )
 
+    val methodBooleanToBooleanTermSymbol = getMethFromConstructs("methodBooleanToBoolean")
+    val funBooleanToBooleanTermTree = createIdent(methodBooleanToBooleanTermSymbol)
+
     val methodByNameBooleanToBooleanTermSymbol = getMethFromConstructs("methodByNameBooleanToBoolean")
-    val funByNameBooleanToBooleanTermTree = decomposeValDef(getTermFromConstructs("funByNameBooleanToBoolean"))._3.asInstanceOf[Apply].fun
+    val funByNameBooleanToBooleanTermTree = createIdent(methodByNameBooleanToBooleanTermSymbol)
 
-    /*
-    val termSymbolFunStringToAnyRef: TermSymbol = constructsClass.getNonOverloadedDecl(Names.termName("funStringToAnyRef")).get
+    val methodBooleanAndDependentArgumentToBooleanTypeSymbol = getMethFromConstructs("methodBooleanAndDependentArgumentToBoolean")
+    val funBooleanAndDependentArgumentToBooleanTermTree = createIdent(methodBooleanAndDependentArgumentToBooleanTypeSymbol)
 
-    val termSymbolFunStringToString: TermSymbol = constructsClass.getNonOverloadedDecl(Names.termName("funStringToString")).get
-    val termSymbolFunByNameStringToString: TermSymbol = constructsClass.getNonOverloadedDecl(Names.termName("funByNameStringToString")).get
 
-    val termSymbolFunStringToNull: TermSymbol = constructsClass.getNonOverloadedDecl(Names.termName("funStringToNull")).get
-    val termSymbolFunStringToInt: TermSymbol = constructsClass.getNonOverloadedDecl(Names.termName("funStringToInt")).get
+    val instanceClassWithBooleanTypeMember @ (instanceClassWithBooleanTypeMemberType,
+      instanceClassWithBooleanTypeMemberTypeTree, instanceClassWithBooleanTypeMemberTermTree) =
+      decomposeValDef(getTermFromConstructs("instanceClassWithBooleanTypeMember"))    
 
-    val typeFunStringToAnyRef: Type = termSymbolFunStringToAnyRef.declaredType
-    val typeFunStringToString: Type = termSymbolFunStringToString.declaredType
-    val typeFunStringToNull: Type = termSymbolFunStringToNull.declaredType
-    val typeFunStringToInt: Type = termSymbolFunStringToInt.declaredType
+    val methodClassWithTypeMemberTermSymbol = getMethFromConstructs("methodClassWithTypeMember")
+    val funClassWithTypeMemberTermTree = createIdent(methodClassWithTypeMemberTermSymbol)
 
-    val typeTreeFunStringToAnyRef: TypeTree = TypeIdent(Names.typeName("_"))(typeFunStringToAnyRef)(NoSpan)
-    val typeTreeFunStringToString: TypeTree = TypeIdent(Names.typeName("_"))(typeFunStringToString)(NoSpan)
-    val typeTreeFunStringToNull: TypeTree = TypeIdent(Names.typeName("_"))(typeFunStringToNull)(NoSpan)
-    val typeTreeFunStringToInt: TypeTree = TypeIdent(Names.typeName("_"))(typeFunStringToInt)(NoSpan)
+    val traitWithSAMBooleanToBooleanTypeSymbol = getTypeFromConstructs("TraitWithSAMBooleanToBoolean")
+    val traitWithSAMBooleanToBooleanTypeTree = createTypeIdent(traitWithSAMBooleanToBooleanTypeSymbol)
 
-    val termTreeFunStringToAnyRef: TermTree =
-      Ident(Names.termName("funStringToAnyRef"))
-        (TermRef(ThisType(TypeRef(auxiliarPackage.packageRef, constructsClass)), termSymbolFunStringToAnyRef))(NoSpan)
-    val termTreeFunStringToString: TermTree =
-      Ident(Names.termName("funStringToString"))
-        (TermRef(ThisType(TypeRef(auxiliarPackage.packageRef, constructsClass)), termSymbolFunStringToString))(NoSpan)
-    val termTreeFunByNameStringToString: TermTree =
-      Ident(Names.termName("funByNameStringToString"))
-        (TermRef(ThisType(TypeRef(auxiliarPackage.packageRef, constructsClass)), termSymbolFunByNameStringToString))(NoSpan)
-    val termTreeFunStringToNull: TermTree =
-      Ident(Names.termName("funStringToNull"))
-        (TermRef(ThisType(TypeRef(auxiliarPackage.packageRef, constructsClass)), termSymbolFunStringToNull))(NoSpan)
-    val termTreeFunStringToInt: TermTree =
-      Ident(Names.termName("funStringToInt"))
-        (TermRef(ThisType(TypeRef(auxiliarPackage.packageRef, constructsClass)), termSymbolFunStringToInt))(NoSpan)
+    val traitWithSAMWithDependentResultTypeSymbol = getTypeFromConstructs("TraitWithSAMWithDependentResult")
+    val traitWithSAMWithDependentResultTypeTree = createTypeIdent(traitWithSAMWithDependentResultTypeSymbol)
 
-    val StringToStringType: TypeRef = TypeRef(constructsClass.appliedRef, typeName("StringToString"))
-    val typeTreeStringtoString: TypeTree = TypeIdent(Names.typeName("StringToString"))(StringToStringType)(NoSpan)
-    */
-
+    val partialFunctionBooleanToBooleanTypeSymbol = getTypeFromConstructs("PartialFunctionBooleanToBoolean")  // Hack
+    val partialFunctionBooleanToBooleanTypeTree = TypeWrapper(partialFunctionBooleanToBooleanTypeSymbol.staticRef.dealias)(NoSpan)
 
   import Data.*
 
@@ -113,26 +102,26 @@ class ExprTypeConformanceTestSuite extends BaseTestSuite:
   private def testAssumptions
     (types: List[Type], typeTrees: List[TypeTree], termTrees: List[TermTree], decider: (Int, Int) => Boolean)
     (using Context): Unit =
-        def helper[A, B](list1: List[A], list2: List[B], decider: (Int, Int) => Boolean)(builder: (A, B) => (Type, Type)): Unit =
-          for
-            (a, i) <- list1.zipWithIndex
-            (b, j) <- list2.zipWithIndex
-          do
-            val (x, y) = builder(a, b)
-            val res = if decider(i, j) then !x.isSubtype(y) else x.isSubtype(y)
-            assert(res, clues(i, j, decider(i, j), x, y))
+      def helper[A, B](list1: List[A], list2: List[B], decider: (Int, Int) => Boolean)(builder: (A, B) => (Type, Type)): Unit =
+        for
+          (a, i) <- list1.zipWithIndex
+          (b, j) <- list2.zipWithIndex
+        do
+          val (x, y) = builder(a, b)
+          val res = if decider(i, j) then !x.isSubtype(y) else x.isSubtype(y)
+          assert(res, clues(i, j, decider(i, j), x, y))
 
-        helper(typeTrees, typeTrees, decider){ (a, b) => (a.toType, b.toType)}
-        helper(typeTrees, types, decider){ (a, b) => (a.toType, b)}
-        helper(typeTrees, termTrees, decider){ (a, b) => (a.toType, b.tpe)}
+      helper(typeTrees, typeTrees, decider){ (a, b) => (a.toType, b.toType)}
+      helper(typeTrees, types, decider){ (a, b) => (a.toType, b)}
+      helper(typeTrees, termTrees, decider){ (a, b) => (a.toType, b.tpe)}
 
-        helper(types, typeTrees, decider){ (a, b) => (a, b.toType)}
-        helper(types, types, decider){ (a, b) => (a, b)}
-        helper(types, termTrees, decider){ (a, b) => (a, b.tpe)}
+      helper(types, typeTrees, decider){ (a, b) => (a, b.toType)}
+      helper(types, types, decider){ (a, b) => (a, b)}
+      helper(types, termTrees, decider){ (a, b) => (a, b.tpe)}
 
-        helper(termTrees, typeTrees, decider){ (a, b) => (a.tpe, b.toType)}
-        helper(termTrees, types, decider){ (a, b) => (a.tpe, b)}
-        helper(termTrees, termTrees, decider){ (a, b) => (a.tpe, b.tpe)}
+      helper(termTrees, typeTrees, decider){ (a, b) => (a.tpe, b.toType)}
+      helper(termTrees, types, decider){ (a, b) => (a.tpe, b)}
+      helper(termTrees, termTrees, decider){ (a, b) => (a.tpe, b.tpe)}
 
   private def exhaustiveTestGenerator[A, B]
     (lista: List[A], listb: List[B], decider: ((A, Int), (B, Int)) => Boolean)
@@ -155,8 +144,7 @@ class ExprTypeConformanceTestSuite extends BaseTestSuite:
     List(anyValTermTree, booleanTermTree, _falseTermTree, stringTermTree),
     List(booleanFull),
     { case ((_, i), (_, _)) => List(0, 3).contains(i) }
-  )
-  // This also works for boolean
+  ) // Also works for booleans
 
   testWithTestAuxiliarContext("assumptions_default") {
     testAssumptions(
@@ -167,7 +155,29 @@ class ExprTypeConformanceTestSuite extends BaseTestSuite:
     )
   }
 
-  //TODO: template
+  private def anyExhaustiveTests(using Context) = exhaustiveTestGenerator(
+    List(anyKindTermTree, anyTermTree, booleanTermTree),
+    List(anyFull),
+    { case ((_, i), (_, _)) => i == 0 }
+  )
+
+  testWithTestAuxiliarContext("assumptions_any") {
+    testAssumptions(
+      List(anyKindType, anyType, booleanType),
+      List(anyKindTypeTree, anyTypeTree, booleanTypeTree),
+      List(anyKindTermTree, anyTermTree, booleanTermTree),
+      (i: Int, j: Int) => (j > i)
+    )
+  }
+
+  testWithTestAuxiliarContext("tree_Template") {
+    val defaultDefDef = DefDef(defaultTermName, Nil, defaultTypeTree, None, defaultTermSymbol)(NoSpan)
+    anyExhaustiveTests{ case (stat, _) =>
+      (Template(defaultDefDef, Nil, None, List(stat)), stat, defn.AnyType)
+    }
+
+    assertChecksWithNoProblems(Template(defaultDefDef, Nil, None, Nil)(NoSpan))
+  }
 
   testWithTestAuxiliarContext("tree_CaseDef") {
     defaultExhaustiveTests{ case (guard, _) =>
@@ -204,6 +214,15 @@ class ExprTypeConformanceTestSuite extends BaseTestSuite:
       funByNameBooleanToBooleanTermTree.tpe.widen.asInstanceOf[MethodType].paramTypes(0).asInstanceOf[ByNameType].underlying)
     }
 
+    defaultExhaustiveTests{ case (arg, _) =>
+      val args = List(booleanTermTree, arg)
+      (Apply(funBooleanAndDependentArgumentToBooleanTermTree, List(booleanTermTree, arg)), arg,
+      {
+        val meth = funBooleanAndDependentArgumentToBooleanTermTree.tpe.widen.asInstanceOf[MethodType]
+        meth.instantiateParamTypes(args.map(_.tpe))(0)
+      })
+    }
+
     assertChecksWithNoProblems(Apply(funBooleanToBooleanTermTree, Nil)(NoSpan))
   }
 
@@ -213,7 +232,13 @@ class ExprTypeConformanceTestSuite extends BaseTestSuite:
     }
   }
 
-  //TODO: block
+  testWithTestAuxiliarContext("tree_Block") {
+    anyExhaustiveTests{ case (stat, _) =>
+      (Block(List(stat), defaultTermTree), stat, defn.AnyType)
+    }
+
+    assertChecksWithNoProblems(Block(Nil, defaultTermTree)(NoSpan))
+  }
 
   testWithTestAuxiliarContext("tree_If") {
     defaultExhaustiveTests{ case (cond, _) =>
@@ -227,39 +252,93 @@ class ExprTypeConformanceTestSuite extends BaseTestSuite:
     }
   }
 
-  //TODO: inlineMatch
-
-  /*
-  testWithTestAuxiliarContext("LSP-Lambda") {
-    val lambdaExhaustiveTests = exhaustiveTestGenerator(
-      List(typeTreeStringtoString), List(termTreeFunStringToAnyRef, termTreeFunStringToString, termTreeFunStringToNull, termTreeFunStringToInt),
-      { case ((_, _), (_, j)) => List(0, 3).contains(j) }
-    )
-
-    /*
-    testAssumptions(
-      List(typeTreeFunStringToAnyRef, typeTreeFunStringToString, typeTreeFunStringToNull, typeTreeFunStringToInt),
-      List(typeFunStringToAnyRef, typeFunStringToString, typeFunStringToNull, typeFunStringToInt),
-      List(termTreeFunStringToAnyRef, termTreeFunStringToString, termTreeFunStringToNull, termTreeFunStringToInt),
-      (i: Int, j: Int) => (j > i) || (i == 3 && j != 3)
-    )
-    It fails because of the bug regarding MethodType and isSubtype (see PotentialBugsSuite)
-    */
-
-    /*
-    lambdaExhaustiveTests{ case (sam, meth) =>
-      (Lambda(meth, Some(sam)), meth.tpe,
-      sam.toType.widen.asInstanceOf[TypeRef].optSymbol.get.asClass.declarations
-      .filter(x => x.flags.is(Flags.Abstract) && x.name != nme.Constructor).map(_.asTerm).head.declaredType)
+  testWithTestAuxiliarContext("tree_InlineMatch") {
+    val defaultCaseDef = CaseDef(defaultPatternTree, None, defaultTermTree)(NoSpan)
+    anyExhaustiveTests{ case (stat, _) =>
+      (InlineMatch(Some(stat), List(defaultCaseDef)), stat, defn.AnyType)
     }
-    It fails because of the bug regarding MethodType and isSubtype (see PotentialBugsSuite)
-    */
 
-    assertChecksWithNoProblems(Lambda(termTree, None)(NoSpan))
+    assertChecksWithNoProblems(InlineMatch(None, List(defaultCaseDef))(NoSpan))
   }
-  */
 
-  //TODO: match
+  testWithTestAuxiliarContext("tree_Lambda") {  //Very hacky test :/
+    val lambdaCovariantExhaustiveTests = exhaustiveTestGenerator(
+      List(anyValType, booleanType, _falseType, stringType),
+      List(null),
+      { case ((_, i), (_, _)) => List(0, 3).contains(i) }
+    ) // Assumptions already tested
+
+    lambdaCovariantExhaustiveTests{ case (tpe, _) =>
+      val meth = New(TypeWrapper(MethodType(List(defaultTermName), List(defn.BooleanType), tpe))(NoSpan))(NoSpan)
+      (Lambda(meth, Some(traitWithSAMBooleanToBooleanTypeTree)),
+      New(TypeWrapper(meth.tpe.widen.asInstanceOf[MethodType])(NoSpan))(NoSpan),
+      traitWithSAMBooleanToBooleanTypeTree.toType.select(
+        traitWithSAMBooleanToBooleanTypeSymbol.asDeclaringSymbol.declarations.head.asTerm
+      ).widen.asInstanceOf[MethodType])
+    }
+
+    lambdaCovariantExhaustiveTests{ case (tpe, _) =>
+      val meth = New(TypeWrapper(MethodType(List(defaultTermName), List(defn.BooleanType), tpe))(NoSpan))(NoSpan)
+      (Lambda(meth, Some(traitWithSAMWithDependentResultTypeTree)),
+      New(TypeWrapper(meth.tpe.widen.asInstanceOf[MethodType])(NoSpan))(NoSpan),
+      traitWithSAMWithDependentResultTypeTree.toType.select(
+        traitWithSAMWithDependentResultTypeSymbol.asDeclaringSymbol.declarations.head.asTerm
+      ).widen.asInstanceOf[MethodType])
+    }
+
+    lambdaCovariantExhaustiveTests{ case (tpe, _) =>
+      val meth = New(TypeWrapper(MethodType(List(defaultTermName), List(defn.BooleanType), tpe))(NoSpan))(NoSpan)
+      (Lambda(meth, Some(partialFunctionBooleanToBooleanTypeTree)),
+      New(TypeWrapper(meth.tpe.widen.asInstanceOf[MethodType])(NoSpan))(NoSpan),
+      partialFunctionBooleanToBooleanTypeTree.toType.select(
+        defn.scalaPackage.getDecl(typeName("PartialFunction")).get.asClass
+        .parentClasses.last.getNonOverloadedDecl(termName("apply")).get
+      ).widen.asInstanceOf[MethodType])
+    }
+
+    val lambdaContravariantExhaustiveTests = exhaustiveTestGenerator(
+      List(anyValType, booleanType, _falseType, stringType),
+      List(null),
+      { case ((_, i), (_, _)) => List(2, 3).contains(i) }
+    ) // Assumptions already tested
+
+    lambdaContravariantExhaustiveTests{ case (tpe, _) =>
+      val meth = New(TypeWrapper(MethodType(List(defaultTermName), List(tpe), defn.BooleanType))(NoSpan))(NoSpan)
+      (Lambda(meth, Some(traitWithSAMBooleanToBooleanTypeTree)),
+      New(TypeWrapper(meth.tpe.widen.asInstanceOf[MethodType])(NoSpan))(NoSpan),
+      traitWithSAMBooleanToBooleanTypeTree.toType.select(
+        traitWithSAMBooleanToBooleanTypeSymbol.asDeclaringSymbol.declarations.head.asTerm
+      ).widen.asInstanceOf[MethodType])
+    }
+
+    lambdaContravariantExhaustiveTests{ case (tpe, _) =>
+      val meth = New(TypeWrapper(MethodType(List(defaultTermName), List(tpe), defn.BooleanType))(NoSpan))(NoSpan)
+      (Lambda(meth, Some(traitWithSAMWithDependentResultTypeTree)),
+      New(TypeWrapper(meth.tpe.widen.asInstanceOf[MethodType])(NoSpan))(NoSpan),
+      traitWithSAMWithDependentResultTypeTree.toType.select(
+        traitWithSAMWithDependentResultTypeSymbol.asDeclaringSymbol.declarations.head.asTerm
+      ).widen.asInstanceOf[MethodType])
+    }
+
+    lambdaContravariantExhaustiveTests{ case (tpe, _) =>
+      val meth = New(TypeWrapper(MethodType(List(defaultTermName), List(tpe), defn.BooleanType))(NoSpan))(NoSpan)
+      (Lambda(meth, Some(partialFunctionBooleanToBooleanTypeTree)),
+      New(TypeWrapper(meth.tpe.widen.asInstanceOf[MethodType])(NoSpan))(NoSpan),
+      partialFunctionBooleanToBooleanTypeTree.toType.select(
+        defn.scalaPackage.getDecl(typeName("PartialFunction")).get.asClass
+        .parentClasses.last.getNonOverloadedDecl(termName("apply")).get
+      ).widen.asInstanceOf[MethodType])
+    }
+
+    assertChecksWithNoProblems(Lambda(defaultTermTree, None)(NoSpan))
+  }
+
+  testWithTestAuxiliarContext("tree_Match") {
+    val defaultCaseDef = CaseDef(defaultPatternTree, None, defaultTermTree)(NoSpan)
+    anyExhaustiveTests{ case (stat, _) =>
+      (Match(stat, List(defaultCaseDef)), stat, defn.AnyType)
+    }
+  }
 
   testWithTestAuxiliarContext("tree_Return") {
     defaultExhaustiveTests{ case (expr, _) =>
@@ -278,7 +357,7 @@ class ExprTypeConformanceTestSuite extends BaseTestSuite:
     assertChecksWithNoProblems(SeqLiteral(Nil, defaultTypeTree)(NoSpan))
   }
 
-  testWithTestAuxiliarContext("LSP-Throw") {
+  testWithTestAuxiliarContext("tree_Throw") {
     val throwExhaustiveTests = exhaustiveTestGenerator(
       List(anyRefTermTree, throwableTermTree, nullTermTree, booleanTermTree),
       List(null),
@@ -315,6 +394,10 @@ class ExprTypeConformanceTestSuite extends BaseTestSuite:
   testWithTestAuxiliarContext("tree_Try") {
     unitExhaustiveTests{ case (expr, _) =>
       (Try(defaultTermTree, List(), Some(expr)), expr, defn.UnitType)
+    }
+
+    anyExhaustiveTests{ case (expr, _) =>
+      (Try(expr, List(), Some(unitTermTree)), expr, defn.AnyType)
     }
 
     assertChecksWithNoProblems(Try(defaultTermTree, List(), None)(NoSpan))

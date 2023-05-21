@@ -2,7 +2,6 @@ package tastychecker
 
 import tastyquery.*
 import tastyquery.Contexts.*
-
 import tastyquery.Exceptions.*
 import tastyquery.Spans.*
 import tastyquery.Names.*
@@ -14,15 +13,16 @@ import tastyquery.Types.*
 class TestlibsTestSuite extends BaseTestSuite:
 
   test("testlib_dummy") {
-    val problems = TASTyChecker(Check.allChecks).check(TestData.testlib_dummy_classpath, TestData.extra_classpath)
+    val problems = TASTyChecker(Check.allChecks, currentFilter).check(TestData.testlib_dummy_classpath, TestData.extra_classpath)
     TASTyChecker.printProblems(List(TestData.testlib_dummy_path), problems)
   }
 
   test("testlib_tastyquery") {
-    val problems = TASTyChecker(Check.allChecks).check(TestData.testlib_tastyquery_classpath, TestData.extra_classpath)
+    val problems = TASTyChecker(Check.allChecks, currentFilter).check(TestData.testlib_tastyquery_classpath, TestData.extra_classpath)
     TASTyChecker.printProblems(List(TestData.testlib_tastyquery_path), problems)
   }
 
+  /*
   testWithContext(TestData.testlib_dummy_context)("testlib_dummy_closer") {
     val symbolFilter = List()
 
@@ -31,13 +31,13 @@ class TestlibsTestSuite extends BaseTestSuite:
       s <- summon[Context].findSymbolsByClasspathEntry(entry)
         .filter(x => !symbolFilter.contains(x.name.toString()))
     do
-      val checker = Checker(Check.allChecks)
+      val checker = Checker(Check.allChecks, currentFilter)
       try
         checker.check(s.tree.get)
       catch {
-        case e: (NotImplementedError | IllegalStateException) => println("ERROR[I]: " + s)
-        case e: MemberNotFoundException => println("ERROR[MNF]: " + s)
-        case e: NoSuchElementException => println("ERROR[NSE]: " + s)
+        case e: (NotImplementedError | IllegalStateException) => println("ERROR[I]: " + s + " " + e)
+        case e: MemberNotFoundException => println("ERROR[MNF]: " + s + " " + e)
+        case e: NoSuchElementException => println("ERROR[NSE]: " + s + " " + e)
       }
       val problems = checker.problems
       if !problems.isEmpty
@@ -48,14 +48,20 @@ class TestlibsTestSuite extends BaseTestSuite:
   }
 
   testWithContext(TestData.testlib_tastyquery_context)("testlib_tastyquery_closer") {
-    val symbolFilter = List("DependentMethod", "TopLevelOpaqueTypeAlias$package", "AnyMethods", "MyArrayOps", "TypesFromTASTy")
+    val symbolFilter = List(
+      "TopLevelOpaqueTypeAlias$package" /* opaque type aliases */,
+      "TypesFromTASTy" /* opaque type aliases */,
+      "AnyMethods" /* Class */,
+      "MyArrayOps" /* Class */,
+      "QuotesAndSplices" /* Tuple, special class */
+      )
 
     val entry = TestData.testlib_tastyquery_classpath.entries(0)
     for
       s <- summon[Context].findSymbolsByClasspathEntry(entry)
         .filter(x => !symbolFilter.contains(x.name.toString()))
     do
-      val checker = Checker(Check.allChecks)
+      val checker = Checker(Check.allChecks, currentFilter)
       try
         checker.check(s.tree.get)
       catch {
@@ -70,6 +76,7 @@ class TestlibsTestSuite extends BaseTestSuite:
           println("PROBLEMS FOUND IN " + s.name)
           for p <- problems do println(p)
   }
+  */
 
   /*
   test("testlib_tastyquery_alt2") {
@@ -126,5 +133,3 @@ class TestlibsTestSuite extends BaseTestSuite:
           println(p)
   }
   */
-
-

@@ -39,3 +39,12 @@ class BaseTestSuite extends munit.FunSuite:
 
   protected def assertNoProblems(using munit.Location)(actual: List[Problem]): Unit =
     assertProblems(actual, List.empty[Problem])
+
+
+  import tastyquery.Trees.Tree
+  extension (tree: Tree)
+    def print: Unit = println(munitPrint(clue(tree)))
+
+  import tastyquery.Types.Type
+  extension (tpe: Type)
+    def print: Unit = println(munitPrint(clue(tpe)))
