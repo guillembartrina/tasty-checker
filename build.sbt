@@ -6,5 +6,5 @@ lazy val root = project
         name := "tasty-checker",
         description := " Reference checker for TASTy, the Scala 3 interchange format",
         version := "0.0.0",
-        libraryDependencies += "ch.epfl.scala" %% "tasty-query" % "0.7.7"
+        libraryDependencies += "ch.epfl.scala" %% "tasty-query" % "0.7.9"
     )

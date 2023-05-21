@@ -1,17 +1,18 @@
 package tastychecker
 
 import scala.collection.mutable as mut
+
 import tastyquery.Contexts.*
 import tastyquery.Names.*
 import tastyquery.Symbols.*
 import tastyquery.Trees.*
 import tastyquery.Types.*
 
-class Checker(val checks: List[Check]):
+class Checker(val checks: List[Check], val filter: Filter = Filter.empty):
   private val _problems: mut.ListBuffer[Problem] = mut.ListBuffer.empty[Problem]
 
   private def walker(tree: Tree)(using Context): Unit =
-    checks.foreach(c => _problems.addAll(c.check(tree)))
+    if !filter.matches(tree) then checks.foreach(c => _problems.addAll(c.check(tree)))
 
   def check(tree: Tree)(using Context): Unit =
     tree.walkTree(walker)

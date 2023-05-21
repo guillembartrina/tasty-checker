@@ -18,14 +18,14 @@ import tastyquery.jdk.ClasspathLoaders
 }
 
 
-class TASTyChecker(val checks: List[Check]):
+class TASTyChecker(val checks: List[Check], val filter: Filter = Filter.empty):
   def check(target: Classpath, extra: Classpath): List[List[Problem]] =
     val context = Contexts.init(target ++ extra)
     given Context = context
     for
       entry <- target.entries.toList
     yield
-      val checker = Checker(checks)
+      val checker = Checker(checks, filter)
       val symbols = context.findSymbolsByClasspathEntry(entry)
       checker.check(symbols.map(_.tree.get))
       checker.problems
