@@ -1,5 +1,6 @@
 package dummy
 
+
 object ExprTypeConformance {
 
   //Template
@@ -474,6 +475,35 @@ object MemberOverridingTypeConformance {
 
   class M3 extends M2:
     override def meth3(x: Int): Int = 12
+
+  class A1 extends Object:
+    override def toString(): String = "string"
+    def meth(): Int = 0
+
+  class A2 extends A1:
+    override def toString: String = "string"
+    override def meth(): Int = 0
+
+  class A3 extends A2:
+    override val toString: String = "string"
+
+  trait BA { def run: Unit }
+  class BB extends Runnable with BA { override def run(): Unit = () }
+
+  class C1 extends Object:
+    override def toString: String = "string"
+    def meth(): Int = 0
+
+  class C2 extends C1:
+    override def toString(): String = "string"
+    override def meth(): Int = 0
+
+  class D1 extends Object:
+    override val toString: String = "string"
+
+  class E1 extends Object:
+    override def toString(): String = "string"
+
 }
 
 object MemberOverridingRules {
@@ -492,80 +522,53 @@ object MemberOverridingRules {
     override def me[B](x: B): B = x
 }
 
+object ScopedReferences {
+  val scAux1 = 0
+  val sc1 = scAux1  //not the case
+
+  case class SC0(x: Int)
+  val scAux2 = SC0(0)
+  val sc2 = scAux2.x  //not the case
+
+  val sc3 = {
+    val innerVal = 0
+    val localRef = innerVal
+    ()
+  }
+
+  val sc31 = {
+    val innerVal = 0
+    {
+      val innerRef = innerVal
+    }
+    {
+      val innerInnerVal = 0
+      val innerRef = innerVal
+    }
+  }
+
+  trait SC1:
+    type T
+  class SC11 extends SC1:
+    type T = Int
+
+  def scAux4(x: SC1, y: x.T, z: x.type): SC1 = x
+  val scAux41 = new SC11
+  val sc4 = scAux4(scAux41, 0, scAux41)
+
+
+  //def scAux2(x: Int, y: x.type, )
+}
+
 // -----------
 
 object Dummy {
   def main(args: Array[String]): Unit =
     println("Hello, World!")
 
-  class Apply71:
-    type Z
-  class Apply72 extends Apply71:
-    type Z = Int
-  def applyAux74(x: Apply71, y: x.Z): Unit = ()
-  val apply74 = applyAux74(new Apply72, 8)
-
-  val tl7: (([X] =>> Int)[0]) = 0
-  val tl4: (([X] =>> [Y <: Int] =>> Boolean)[Any][0]) = false
-
-  //isSubArgs, TODO Approximate if co- or contravariant
-  def tpAux7[T <: Int](x: List[T]): Unit = ()
-  def tp71[T <: Int](x: List[_ <: T]): Unit = tpAux7(x)
-
   def g(xs: Seq[Int]): Int = xs match
     case List(elems: _*) => 0
     case _               => 1
-
-  class CA { val mem: Int = 0; def meth(x: List[Int]): Int = 0; def meth2[Boolean](x: Int): Int = 0 }
-  class CB extends CA { override val mem: 0 = 0; override def meth(x: List[Int]): Int = 0; override def meth2[AnyVal](x: Int): Int = 0 }
 }
 
 // -----------
-
-/*
-//New
-trait New1
-trait New11 extends New1
-class New2
-class New21 extends New2:
-  s: New1 =>
-  def meth(x: Int): Int = 0
-
-val new1 = new New2
-val new11 = new New21 with New11
-val new2 = new { val x = 0 }
-val new3 = new {
-  s: New1 =>
-  val x = 0
-}
-*/
-
-/*
-  class Test[A]
-  val xx = new Test[Int]
-
-  val x1: ([X <: Int] =>> X)[Int] = 2
-  val x2: Int = ([X <: Int] => (x: X) => 0)(0)
-
-  val x3: (
-    Int match
-      case Int => String
-      case _ => Unit
-  ) = "string"
-
-  def x4[X](x: X): X = x :(
-    X match
-      case _ => X
-  )
-  */
-
-/*
-val apply22: SAM = ((x: Int) => (x: Int) => x)(0)
-val apply23: Int => Int = x => x
-val apply24: SAM = apply23
-
-val lambda5: Lambda = ((x: Int) => ((x: Int) => x))(0)
-trait Lambda3:
-  def sam(x: Int)(y: Boolean): Int
-val lambda6: Lambda3 = (x: AnyVal) => (y: Boolean) => 0
-*/

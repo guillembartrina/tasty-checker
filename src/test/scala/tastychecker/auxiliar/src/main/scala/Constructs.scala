@@ -1,5 +1,6 @@
 package auxiliar
 
+
 object Constructs {
   // Basic
   val any: Any = 0: Any

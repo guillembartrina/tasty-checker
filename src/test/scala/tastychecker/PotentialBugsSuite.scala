@@ -2,7 +2,6 @@ package tastychecker
 
 import tastyquery.*
 import tastyquery.Contexts.*
-
 import tastyquery.Exceptions.*
 import tastyquery.Spans.*
 import tastyquery.Names.*
@@ -10,6 +9,7 @@ import tastyquery.Symbols.*
 import tastyquery.Constants.*
 import tastyquery.Trees.*
 import tastyquery.Types.*
+
 
 class PotentialBugsSuite extends BaseTestSuite:
 
@@ -399,37 +399,33 @@ class PotentialBugsSuite extends BaseTestSuite:
   // ---
   // Week 12
 
-  testSymbolWithContext(TestData.testlib_dummy_context)("subtyping_appliedtype")("dummy.Dummy[$]") { symbol =>
-    val s = symbol.asClass.getDecl(termName("tl4")).get
-    val t = s.tree.get
-    println(t)
-    val tp = t.asInstanceOf[ValDef]
-    println(tp)
-
-    println("typcon:  " + tp.tpt.toType.asInstanceOf[AppliedType].tycon)
-    // tycon returns no type parameters
-    //println("typeParams:  " + tp.tpt.toType.asInstanceOf[AppliedType].tycon.typeParams)
-
-    // we have two AppliedType in a row. the call to superType kills the typeLambdas so we loose the type params
-    println(tp.rhs.get.tpe.isSubtype(tp.tpt.toType))
-  }
-
-  testSymbolWithContext(TestData.testlib_dummy_context)("subtyping_appliedtype2")("dummy.Dummy[$]") { symbol =>
+  testSymbolWithContext(TestData.test_auxiliar_context)("subtyping_appliedtype")("auxiliar.PotentialBugs[$]") { symbol =>
     val s = symbol.asClass.getDecl(termName("tl7")).get
-    val t = s.tree.get
-    println(t)
-    val tp = t.asInstanceOf[ValDef]
+    val tp = s.tree.get.asInstanceOf[ValDef]
     println(tp)
 
     println("typcon:  " + tp.tpt.toType.asInstanceOf[AppliedType].tycon)
-    // tycon returns no type parameters
-    //println("typeParams:  " + tp.tpt.toType.asInstanceOf[AppliedType].tycon.typeParams)
+    println("typeParams:  " + tp.tpt.toType.asInstanceOf[AppliedType].tycon.typeParams)
+    println("type: " + tp.tpt.toType.widen)
 
-    // we have two AppliedType in a row. the call to superType kills the typeLambdas so we loose the type params
+    // we have an AppliedType. isSubtype is not resolving the AppliedType(TypeLambda(...)) correctly
+    // compareAppliedType2 does not handle the case tycon is a TypeLambda (?)
     println(tp.rhs.get.tpe.isSubtype(tp.tpt.toType))
   }
 
-  testSymbolWithContext(TestData.testlib_dummy_context)("wildcardbounds_TODO")("dummy.Dummy[$]") { symbol =>
+  testSymbolWithContext(TestData.test_auxiliar_context)("subtyping_appliedtype2")("auxiliar.PotentialBugs[$]") { symbol =>
+    val s = symbol.asClass.getDecl(termName("tl4")).get
+    val tp = s.tree.get.asInstanceOf[ValDef]
+    println(tp)
+
+    println("typcon:  " + tp.tpt.toType.asInstanceOf[AppliedType].tycon)
+    println("typeParams:  " + tp.tpt.toType.asInstanceOf[AppliedType].tycon.typeParams)  // tycon returns no type parameters
+
+    // -> we have two AppliedType in a row. the call to superType kills the typeLambdas so we loose the type params
+    println(tp.rhs.get.tpe.isSubtype(tp.tpt.toType))
+  }
+
+  testSymbolWithContext(TestData.test_auxiliar_context)("wildcardbounds_TODO")("auxiliar.PotentialBugs[$]") { symbol =>
     val s = symbol.asClass.getNonOverloadedDecl(termName("tp71")).get
     val t = s.tree.get
     println(t)
@@ -437,19 +433,22 @@ class PotentialBugsSuite extends BaseTestSuite:
     val checker = Checker(Check.checks(List("ExprTypeConformance")))
     checker.check(t)
 
-    //checker.problems.foreach(x => { println(x); println() })
+    checker.problems.foreach(x => { println(x); println() })
     assertEquals(checker.problems, List.empty[Problem])
+    // compareAppliedType2 -> isMatchingApply : tycon1 case TypeParamRef -> isSubargs : WildcardTypeBounds tp case _ (TODO Approximate if co- or contravariant)
   }
 
-  testSymbolWithContext(TestData.testlib_dummy_context)("bad_substitution")("dummy.Dummy[$]") { symbol =>
+  testSymbolWithContext(TestData.test_auxiliar_context)("bad_substitution")("auxiliar.PotentialBugs[$]") { symbol =>
     val s1 = symbol.asClass.getNonOverloadedDecl(termName("applyAux74")).get
     val s2 = symbol.asClass.getDecl(termName("apply74")).get
     val app = s2.tree.get.asInstanceOf[ValDef].rhs.get.asInstanceOf[Apply]
 
     println("initial " + s1.declaredType)
+    println("t: " + s1.declaredType.asInstanceOf[MethodType].instantiateParamTypes(app.args.map(_.tpe))(1))
     println("is subtype -> " + app.args(1).tpe.isSubtype(s1.declaredType.asInstanceOf[MethodType].instantiateParamTypes(app.args.map(_.tpe))(1)))
     s1.declaredType.asInstanceOf[MethodType].paramTypes.map{case t: TypeRef => t.optSymbol}
     println("after " + s1.declaredType)
+    println("t: " + s1.declaredType.asInstanceOf[MethodType].instantiateParamTypes(app.args.map(_.tpe))(1))
     println("is subtype -> " + app.args(1).tpe.isSubtype(s1.declaredType.asInstanceOf[MethodType].instantiateParamTypes(app.args.map(_.tpe))(1)))
 
     

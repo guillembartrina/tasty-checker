@@ -1,6 +1,5 @@
 package tastychecker
 
-import scala.collection.mutable as mut
 import tastyquery.*
 import tastyquery.Contexts.*
 import tastyquery.Exceptions.*
@@ -10,6 +9,7 @@ import tastyquery.Symbols.*
 import tastyquery.Constants.*
 import tastyquery.Trees.*
 import tastyquery.Types.*
+
 
 class ExprTypeConformanceTestSuite extends BaseTestSuite:
 

@@ -8,6 +8,7 @@ import tastyquery.Classpaths.*
 import tastyquery.jdk.ClasspathLoaders
 import tastyquery.Contexts.*
 
+
 object TestData:
   val extra_paths: List[Path] =
     FileSystems.getFileSystem(URI.create("jrt:/")).nn.getPath("modules", "java.base").nn

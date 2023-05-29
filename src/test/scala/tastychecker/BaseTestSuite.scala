@@ -5,6 +5,7 @@ import tastyquery.Contexts.*
 import tastyquery.Names.*
 import tastyquery.Symbols.*
 
+
 class BaseTestSuite extends munit.FunSuite:
   protected def testWithContext(context: Context)(testName: String)(body: Context ?=> Any) =
     test(testName) {
