@@ -8,6 +8,7 @@ import tastyquery.Symbols.*
 import tastyquery.Trees.*
 import tastyquery.Types.*
 
+
 class Checker(val checks: List[Check], val filter: Filter = Filter.empty):
   private val _problems: mut.ListBuffer[Problem] = mut.ListBuffer.empty[Problem]
 
@@ -66,6 +67,7 @@ extension (tree: Tree)
       case New(tpt)                                               => Nil //tpt?
       case Return(expr, from)                                     => expr.toList
       case Select(qualifier, name)                                => qualifier :: Nil
+      case SelectOuter(qualifier, levels)                         => qualifier :: Nil
       case SeqLiteral(elems, elempt)                              => elems ::: elempt :: Nil
       case Super(qual, mix)                                       => qual :: Nil //mix?
       case This(qualifier)                                        => Nil //qualifier?
@@ -97,6 +99,7 @@ extension (tree: Tree)
       case TypeTreeBind(name, body, symbol)                       => body :: Nil
       case TypeWrapper(tp)                                        => Nil //tp
       case WildcardTypeBoundsTree(bounds)                         => bounds :: Nil
+      case TypeBindingsTree(bindings, body)                       => bindings :: body :: Nil
 
       //- TypeDefinitionTree
       case TypeAliasDefinitionTree(alias)                         => alias :: Nil

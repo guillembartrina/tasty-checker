@@ -4,6 +4,7 @@ import tastyquery.Symbols.TermSymbol
 import tastyquery.Trees.Tree
 import tastyquery.Types.{Type, TypeBounds}
 
+
 abstract class Problem(val message: String, val tree: Tree):
   override def toString(): String = s"${getClass.getSimpleName}: $message\n# $tree"
 
