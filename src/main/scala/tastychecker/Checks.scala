@@ -5,12 +5,12 @@ import scala.annotation.tailrec
 import tastyquery.Contexts.*
 import tastyquery.Names.*
 import tastyquery.Flags.*
+import tastyquery.SourceLanguage
 import tastyquery.Symbols.*
 import tastyquery.Exceptions.*
 import tastyquery.Trees.*
 import tastyquery.Types.*
 
-import tastyquery.Erasure.erase
 
 abstract class Check:
   val name: String = getClass.getSimpleName.init
@@ -32,7 +32,6 @@ object Check:
     for n <- names; c <- _checks.get(n) yield c
 
   def allChecks: List[Check] = _checks.values.toList
-
 
 // -------------------------------------------------------
 // ExprTypeConformance: Checks that expressions' type conforms to the expected type
@@ -177,6 +176,7 @@ object ExprTypeRules extends Check:
       case _ => Nil
     ret.iterator.to(List)
 
+// -------------------------------------------------------
 // MatchingTypeRules: Checks that matchings follows the typing rules
 object MatchingTypeRules extends Check:
   private def matchesType(tpea: Type, tpeb: Type)(using tree: Tree)(using Context): Option[NotMatchesType] =
@@ -286,46 +286,49 @@ object MemberOverridingTypeConformance extends Check:
     if tpea.isSubtype(tpeb) then None else Some(NotConformsType(tpea, tpeb, tree))
 
   override def check(tree: Tree)(using Context): List[NotConformsType] =
+    def helper(symbol: TermSymbol): List[NotConformsType] =
+      def methodize(tpe: Type): Type = if !tpe.isInstanceOf[MethodType] then MethodType(Nil, Nil, tpe) else tpe
+      for
+        s <- symbol.nextOverriddenSymbol.toList
+        ojm = symbol.allOverriddenSymbols.find(x => x.asTerm.sourceLanguage == SourceLanguage.Java).isDefined
+        tpea = if ojm then methodize(symbol.declaredType) else symbol.declaredType
+        tpeb = if ojm then methodize(s.asTerm.declaredType) else s.asTerm.declaredType
+        tpebp = tpeb.asSeenFrom(symbol.owner.asClass.thisType, s.owner)
+        p <- conformsType(tpea, tpebp)
+      yield p
     given Tree = tree
     tree match
-      case ValDef(_, _, _, symbol) =>
-        for
-          s <- symbol.nextOverriddenSymbol.toList
-          tpe = s.asTerm.declaredType.asSeenFrom(symbol.owner.asClass.thisType, s.owner)
-          p <- conformsType(symbol.declaredType, tpe)
-        yield p
-      case DefDef(_, _, _, _, symbol) =>
-        def stripParameterlessMethod(tpe: Type): Type = tpe match
-          case meth: MethodType if meth.paramNames.isEmpty => meth.resultType
-          case _ => tpe
-        for
-          s <- symbol.nextOverriddenSymbol.toList
-          tpe = stripParameterlessMethod(s.asTerm.declaredType).asSeenFrom(symbol.owner.asClass.thisType, s.owner)
-          p <- conformsType(stripParameterlessMethod(symbol.declaredType), tpe)
-        yield p
+      case ValDef(_, _, _, symbol) => helper(symbol)
+      case DefDef(_, _, _, _, symbol) => helper(symbol)
       case _ => Nil
 
 // -------------------------------------------------------
 // MemberOverridingRules: Checks that members with the same erasure indeed override
 object MemberOverridingRules extends Check:
   private def overrides(sa: TermSymbol, sb: TermSymbol)(using tree: Tree)(using Context): Option[NotOverrides] =
-    if sa.nextOverriddenSymbol.map(s => s == sb).getOrElse(false) then None else Some(NotOverrides(sa, sb, tree))
-
-  private def erase2(tpe: Type)(using Context): Tuple = tpe match
-    case tpe: MethodType => tpe.paramTypes.map(erase2(_)) *: erase2(tpe.resultType) *: EmptyTuple
-    case tpe: PolyType => erase2(tpe.resultType) *: EmptyTuple
-    case tpe: AndType => EmptyTuple
-    case tpe => 
-      try erase(tpe) *: EmptyTuple
-      catch case _: UnsupportedOperationException => EmptyTuple
+    if sa.nextOverriddenSymbol.map(_ == sb).getOrElse(false) then None else Some(NotOverrides(sa, sb, tree))
 
   private def findCandidate(target: TermSymbol)(using Context): Option[TermSymbol] =
+    import tastyquery.Signatures.*
+    def signatureOf(info: Type, language: SourceLanguage)(using Context): Signature =
+      def rec(info: Type, acc: List[ParamSig]): Signature =
+        info match {
+          case info: MethodType =>
+            val erased = info.paramTypes.map(tpe => ParamSig.Term(ErasedTypeRef.erase(tpe, language).toSigFullName))
+            rec(info.resultType, acc ::: erased)
+          case info: PolyType =>
+            rec(info.resultType, acc ::: ParamSig.TypeLen(info.paramTypeBounds.length) :: Nil)
+          case tpe =>
+            Signature(acc, ErasedTypeRef.erase(tpe, language).toSigFullName)
+        }
+
+      rec(info, Nil)
     if target.owner.isClass && !target.is(Private) && target.name != nme.Constructor then
-      val targetType = erase2(target.declaredType)
+      val targetSignature = target.signature
       val thisType = target.owner.asClass.thisType
       def candidate(in: ClassSymbol): Option[TermSymbol] =
         val candidates = in.getAllOverloadedDecls(target.name).filterNot(_.is(Private))
-        candidates.find(c => erase2(c.declaredType.asSeenFrom(thisType, c.owner)) == targetType)
+        candidates.find(c => signatureOf(c.declaredType.asSeenFrom(thisType, c.owner), c.sourceLanguage) == targetSignature)
       val ancestors = target.owner.asClass.linearization.tail
       ancestors.iterator.map(candidate(_)).flatten.nextOption()
     else None

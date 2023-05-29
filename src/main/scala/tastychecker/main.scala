@@ -7,6 +7,7 @@ import tastyquery.Classpaths.*
 import tastyquery.Contexts.*
 import tastyquery.jdk.ClasspathLoaders
 
+
 @main def main() = {
   val default: List[Path] = List()
 

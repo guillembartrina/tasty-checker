@@ -1,5 +1,5 @@
 
-ThisBuild / scalaVersion := "3.2.2"
+ThisBuild / scalaVersion := "3.3.0"
 
 lazy val root = project
   .in(file("."))
@@ -11,7 +11,7 @@ lazy val root = project
     description := " Reference checker for TASTy, the Scala 3 interchange format",
     version := "0.0.0",
     libraryDependencies ++= Seq(
-      "ch.epfl.scala" %% "tasty-query" % "0.7.9",
+      "ch.epfl.scala" %% "tasty-query" % "0.8.0",
       "org.scalameta" %% "munit" % "0.7.29" % Test
     ),
     envVars += {
