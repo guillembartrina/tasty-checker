@@ -14,32 +14,72 @@ import tastyquery.Types.*
 
 abstract class Check:
   val name: String = getClass.getSimpleName.init
-  def check(tree: Tree)(using Context): List[Problem]
+  def check(tree: Tree)(using Filter)(using Context): List[Problem]
 
 object Check:
-  private val _checks: Map[String, Check] =
-    List(
-      ExprTypeConformance,
-      ExprTypeRules,
-      MatchingTypeRules,
-      TypeBoundsConformance,
-      TypeMemberBoundsConformance,
-      MemberOverridingTypeConformance,
-      MemberOverridingRules
-    ).map(x => (x.name, x)).toMap
+  val allChecks: List[Check] = List(
+    ExprTypeConformance,
+    ExprTypeRules,
+    MatchingTypeRules,
+    TypeBoundsConformance,
+    TypeMemberBoundsConformance,
+    MemberOverridingTypeConformance,
+    MemberOverridingRules,
+    //ScopedReferences
+  )
+  def someChecks(names: List[String]): List[Check] =
+    for n <- names; c <- allChecks.find(_.name == n) yield c
+  def tryCompactChecks(checks: List[Check]): List[Check] =
+    val (noncontextual, other) = checks.partitionMap{
+      case nc: ContextlessCheck => Left(nc)
+      case o => Right(o)
+    }
+    ContextlessCheck.tryMergeChecks(noncontextual) ::: other
 
-  def checks(names: List[String]): List[Check] =
-    for n <- names; c <- _checks.get(n) yield c
 
-  def allChecks: List[Check] = _checks.values.toList
+abstract class ContextlessCheck extends Check:
+  override def check(tree: Tree)(using filter: Filter)(using Context): List[Problem] =
+    (for t <- walkTree(tree) if !filter.matches(t); p <- checkTree(t) yield p).toList
+  protected def walkTree(tree: Tree)(using Context): Iterator[Tree]
+  protected def checkTree(tree: Tree)(using Context): List[Problem]
+
+object ContextlessCheck:
+  trait FullPreorderWalk:
+    protected def walkTree(tree: Tree)(using Context): Iterator[Tree] =
+      Iterator.single(tree) ++ (for st <- tree.subtrees.iterator; t <- walkTree(st) yield t)
+  def tryMergeChecks(checks: List[ContextlessCheck]): List[ContextlessCheck] =
+    val (fullPreorder, other) = checks.partitionMap{
+      case fpw: FullPreorderWalk => Left(fpw)
+      case o => Right(o)
+    }
+    Option.when(fullPreorder.nonEmpty){
+      object Anon extends ContextlessCheck with FullPreorderWalk:
+        override protected def checkTree(tree: Tree)(using Context): List[Problem] =
+          fullPreorder.flatMap(_.checkTree(tree))
+      Anon
+    }.toList ::: other
+
+
+abstract class ContextfulCheck[C] extends Check:
+  override def check(tree: Tree)(using filter: Filter)(using Context): List[Problem] =
+    (for (t, c) <- walkTree(tree, initialContext) if !filter.matches(t); p <- checkTree(t, c) yield p).toList
+  protected def initialContext: C
+  protected def walkTree(tree: Tree, context: C)(using Context): Iterator[(Tree, C)]
+  protected def checkTree(tree: Tree, context: C)(using Context): List[Problem]
+
+object ContextfulCheck:
+  trait StepizedCustomWalk[C]:
+    protected def walkTree(tree: Tree, context: C)(using Context): Iterator[(Tree, C)] =
+      Iterator.single((tree, context)) ++ (for (st, sc) <- walkStep(tree, context).iterator; (t, c) <- walkTree(st, sc) yield (t, c))
+    protected def walkStep(tree: Tree, context: C)(using Context): List[(Tree, C)]
 
 // -------------------------------------------------------
 // ExprTypeConformance: Checks that expressions' type conforms to the expected type
-object ExprTypeConformance extends Check:
+object ExprTypeConformance extends ContextlessCheck with ContextlessCheck.FullPreorderWalk:
   private def conformsType(term: TermTree, tpe: Type)(using tree: Tree)(using Context): Option[NotConformsType] =
     if term.tpe.isSubtype(tpe) then None else Some(NotConformsType(term.tpe, tpe, tree))
 
-  override def check(tree: Tree)(using Context): List[NotConformsType] =
+  override protected def checkTree(tree: Tree)(using Context): List[NotConformsType] =
     given Tree = tree
     val ret = tree match
       case Template(_, _, _, body) =>
@@ -110,11 +150,11 @@ object ExprTypeConformance extends Check:
 
 // -------------------------------------------------------
 // ExprTypeRules: Checks that expressions' type follows the typing rules
-object ExprTypeRules extends Check:
+object ExprTypeRules extends ContextlessCheck with ContextlessCheck.FullPreorderWalk:
   private def matchesType(term: TermTree, tpe: Type)(using tree: Tree)(using Context): Option[NotMatchesType] =
     if term.tpe.isSameType(tpe) then None else Some(NotMatchesType(term.tpe, tpe, tree))
 
-  override def check(tree: Tree)(using Context): List[NotMatchesType] =
+  override protected def checkTree(tree: Tree)(using Context): List[NotMatchesType] =
     given Tree = tree
     val ret = tree match
       case tr @ Apply(fun, args) =>
@@ -178,7 +218,7 @@ object ExprTypeRules extends Check:
 
 // -------------------------------------------------------
 // MatchingTypeRules: Checks that matchings follows the typing rules
-object MatchingTypeRules extends Check:
+object MatchingTypeRules extends ContextlessCheck with ContextlessCheck.FullPreorderWalk:
   private def matchesType(tpea: Type, tpeb: Type)(using tree: Tree)(using Context): Option[NotMatchesType] =
     if tpea.isSameType(tpeb) then None else Some(NotMatchesType(tpea, tpeb, tree))
 
@@ -231,7 +271,7 @@ object MatchingTypeRules extends Check:
                 (null, patterns.zip(tpes).map((p, t) => checkPattern(t, p)).flatten)
     rec(sel, pattern)._2
 
-  override def check(tree: Tree)(using Context): List[NotMatchesType] =
+  override protected def checkTree(tree: Tree)(using Context): List[NotMatchesType] =
     given Tree = tree
     val ret = tree match
       case Match(selector, cases) =>
@@ -245,11 +285,11 @@ object MatchingTypeRules extends Check:
 
 // -------------------------------------------------------
 // TypeBoundsConformance: Checks that type parameters' type conform to bounds
-object TypeBoundsConformance extends Check:
+object TypeBoundsConformance extends ContextlessCheck with ContextlessCheck.FullPreorderWalk:
   private def conformsBounds(tpe: TypeTree, bounds: TypeBounds)(using tree: Tree)(using Context): Option[NotConformsBounds] =
     if bounds.contains(tpe.toType) then None else Some(NotConformsBounds(tpe.toType, bounds, tree))
 
-  override def check(tree: Tree)(using Context): List[NotConformsBounds] =
+  override protected def checkTree(tree: Tree)(using Context): List[NotConformsBounds] =
     given Tree = tree
     tree match
       case TypeApply(fun, args) =>
@@ -260,11 +300,11 @@ object TypeBoundsConformance extends Check:
 
 // -------------------------------------------------------
 // TypeMemberBoundsConformance: Checks that type members' bounds conform to the overriden bounds
-object TypeMemberBoundsConformance extends Check:
-  private def conformsBounds(boundsa: TypeBounds, boundsb: TypeBounds)(using tree: Tree)(using Context): Option[NotConformsBounds2] =
-    if boundsb.contains(boundsa) then None else Some(NotConformsBounds2(boundsa, boundsb, tree))
+object TypeMemberBoundsConformance extends ContextlessCheck with ContextlessCheck.FullPreorderWalk:
+  private def conformsBounds(boundsa: TypeBounds, boundsb: TypeBounds)(using tree: Tree)(using Context): Option[NotConformsBounds] =
+    if boundsb.contains(boundsa) then None else Some(NotConformsBounds(boundsa, boundsb, tree))
 
-  override def check(tree: Tree)(using Context): List[NotConformsBounds2] =
+  override protected def checkTree(tree: Tree)(using Context): List[NotConformsBounds] =
     given Tree = tree
     tree match
       case TypeMember(_, _, symbol) =>
@@ -281,11 +321,11 @@ object TypeMemberBoundsConformance extends Check:
 
 // -------------------------------------------------------
 // MemberOverridingTypeConformance: Checks that member' types conform to the overriden type
-object MemberOverridingTypeConformance extends Check:
+object MemberOverridingTypeConformance extends ContextlessCheck with ContextlessCheck.FullPreorderWalk:
   private def conformsType(tpea: Type, tpeb: Type)(using tree: Tree)(using Context): Option[NotConformsType] =
     if tpea.isSubtype(tpeb) then None else Some(NotConformsType(tpea, tpeb, tree))
 
-  override def check(tree: Tree)(using Context): List[NotConformsType] =
+  override protected def checkTree(tree: Tree)(using Context): List[NotConformsType] =
     def helper(symbol: TermSymbol): List[NotConformsType] =
       def methodize(tpe: Type): Type = if !tpe.isInstanceOf[MethodType] then MethodType(Nil, Nil, tpe) else tpe
       for
@@ -304,7 +344,7 @@ object MemberOverridingTypeConformance extends Check:
 
 // -------------------------------------------------------
 // MemberOverridingRules: Checks that members with the same erasure indeed override
-object MemberOverridingRules extends Check:
+object MemberOverridingRules extends ContextlessCheck with ContextlessCheck.FullPreorderWalk:
   private def overrides(sa: TermSymbol, sb: TermSymbol)(using tree: Tree)(using Context): Option[NotOverrides] =
     if sa.nextOverriddenSymbol.map(_ == sb).getOrElse(false) then None else Some(NotOverrides(sa, sb, tree))
 
@@ -333,11 +373,87 @@ object MemberOverridingRules extends Check:
       ancestors.iterator.map(candidate(_)).flatten.nextOption()
     else None
 
-  override def check(tree: Tree)(using Context): List[NotOverrides] =
+  override protected def checkTree(tree: Tree)(using Context): List[NotOverrides] =
     given Tree = tree
     tree match
       case ValDef(_, _, _, symbol) =>
         for c <- findCandidate(symbol).toList; p <- overrides(symbol, c) yield p
       case DefDef(_, _, _, _, symbol) =>
         for c <- findCandidate(symbol).toList; p <- overrides(symbol, c) yield p
+      case _ => Nil
+
+// -------------------------------------------------------
+// ScopedReferences: ...
+private case class Scope(terms: Set[TermSymbol], types: Set[TypeSymbol]):
+  def withTerm(ts: TermSymbol): Scope = copy(terms = terms + ts)
+  def withTerms(tss: List[TermSymbol]): Scope = copy(terms = terms ++ tss)
+  def withType(ts: TypeSymbol): Scope = copy(types = types + ts)
+  def withTypes(tss: List[TypeSymbol]): Scope = copy(types = types ++ tss)
+
+object Scope:
+  def empty: Scope = Scope(Set.empty[TermSymbol], Set.empty[TypeSymbol])
+
+object ScopedReferences extends ContextfulCheck[Scope] with ContextfulCheck.StepizedCustomWalk[Scope]:
+  private def termInScope(ts: TermSymbol, scope: Scope)(using tree: Tree): Option[NotInScope] =
+    if scope.terms.contains(ts) then None else Some(NotInScope(ts, tree))
+  private def typeInScope(ts: TypeSymbol, scope: Scope)(using tree: Tree): Option[NotInScope] =
+    if scope.types.contains(ts) then None else Some(NotInScope(ts, tree))
+
+  override protected def initialContext: Scope = Scope.empty
+
+  override protected def walkStep(tree: Tree, context: Scope)(using Context): List[(Tree, Scope)] =  //PRUNE BRANCHES
+    tree match
+      case Block(stats, expr) =>
+        (stats :+ expr).foldLeft((context, List.empty[(Tree, Scope)])){ case ((s, l), t) =>
+          val ns = t match
+            case ValDef(_, _, _, symbol) => s.withTerm(symbol)
+            case DefDef(_, _, _, _, symbol) => s.withTerm(symbol)
+            case ClassDef(_, _, symbol) => s.withType(symbol)
+            case TypeMember(_, _, symbol) => s.withType(symbol)
+            case _ => s
+          (ns, (t, s) :: l)
+        }._2
+      case DefDef(_, paramList, resultTpt, rhs, _) =>
+        val (nc, ps) = paramList.foldLeft((context, List.empty[(Tree, Scope)])){ case ((s, l), c) =>
+          c match
+            case Left(valDefs) =>
+              valDefs.foldLeft((s, l)){ case ((s2, l2), valDef) =>
+                (s2.withTerm(valDef.symbol), (valDef, s2) :: l2)
+              }
+            case Right(typeParams) =>
+              (s.withTypes(typeParams.map(_.symbol)), typeParams.map((_, s)) ::: l)
+        }
+        (resultTpt, nc) :: rhs.map((_, nc)).toList ::: ps
+      case CaseDef(pattern, guard, body) =>
+        def getBindings(patt: PatternTree): List[TermSymbol] = patt match
+          case Bind(_, body, symbol) => symbol :: getBindings(body)
+          case Unapply(_, _, patterns) => patterns.flatMap(getBindings(_))
+          case Alternative(trees) => trees.flatMap(getBindings(_))
+          case TypeTest(body, _) => getBindings(body)
+          case _ => Nil
+        (pattern, context) :: (body, context.withTerms(getBindings(pattern))) :: guard.map((_, context)).toList
+      case Inlined(expr, _, bindings) =>
+        (bindings :+ expr).foldLeft((context, List.empty[(Tree, Scope)])){ case ((s, l), t) =>
+          val ns = t match
+            case ValDef(_, _, _, symbol) => s.withTerm(symbol)
+            case DefDef(_, _, _, _, symbol) => s.withTerm(symbol)
+            case _ => s
+          (ns, (t, s) :: l)
+        }._2
+      case TypeCaseDef(pattern, body) =>
+        def getBindings(patt: TypeTree): List[TypeSymbol] = patt match  // INCOMPLETE?
+          case TypeTreeBind(_, _, symbol) => symbol :: Nil
+          case AppliedTypeTree(_, targs) => targs.flatMap(getBindings(_))
+          case _ => Nil
+        (pattern, context) :: (body, context.withTypes(getBindings(pattern))) :: Nil
+      case _ => tree.subtrees.map((_, context))
+
+
+  override protected def checkTree(tree: Tree, context: Scope)(using Context): List[Problem] =
+    given Tree = tree
+    tree match
+      case tr: Ident if tr.tpe.isInstanceOf[TermRef] && tr.tpe.asInstanceOf[TermRef].prefix == NoPrefix =>
+        termInScope(tr.symbol.asTerm, context).toList
+      case tr: TypeIdent if tr.toType.isInstanceOf[TypeRef] && tr.toType.asInstanceOf[TypeRef].prefix == NoPrefix =>
+        typeInScope(tr.toType.asInstanceOf[TypeRef].optSymbol.get, context).toList
       case _ => Nil
