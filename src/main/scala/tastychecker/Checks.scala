@@ -18,13 +18,14 @@ type TreeCheck = Check[Tree]
 object TreeCheck:
   val allChecks: List[TreeCheck] = List(
     ExprTypeConformance,
-    ExprTypeRules,
-    MatchingTypeRules,
+    MatchingTypeCorrectness,
     TypeBoundsConformance,
-    TypeMemberBoundsConformance,
+    TypeMemberOverridingBoundsConformance,
     MemberOverridingTypeConformance,
-    MemberOverridingRules,
-    LocalReferencesScope
+    MemberErasureOverridance,
+    LocalReferencesScoping,
+
+    ExprTypeRules  //Not really a check...
   )
   def someChecks(names: List[String]): List[TreeCheck] =
     for n <- names; c <- allChecks.find(_.name == n) yield c
@@ -157,76 +158,8 @@ private object ExprTypeConformance extends ContextlessCheck[Tree] with Contextle
     ret.iterator.toList
 
 // -------------------------------------------------------
-// ExprTypeRules: Checks that expressions' types follow the typing rules
-private object ExprTypeRules extends ContextlessCheck[Tree] with ContextlessCheck.FullPreorderWalk[Tree]:
-  private def matchesType(term: TermTree, tpe: Type)(using tree: Tree)(using Context): Option[NotMatchesType] =
-    if term.tpe.isSameType(tpe) then None else Some(NotMatchesType(term.tpe, tpe, tree))
-
-  override protected def checkT(tree: Tree)(using Context): List[NotMatchesType] =
-    given Tree = tree
-    val ret = tree match
-      case tr @ Apply(fun, args) =>
-        @tailrec def isApplyNew(tree: TermTree)(using Context): Boolean = tree match
-          case Apply(fn, _) => isApplyNew(fn)
-          case TypeApply(fn, _) => isApplyNew(fn)
-          case Block(_, expr) => isApplyNew(expr)
-          case Select(New(_), SignedName(nme.Constructor, _, _)) => true
-          case _ => false
-        if !isApplyNew(tr)
-        then
-          val instResultType = fun.tpe.widen.asInstanceOf[MethodType].instantiate(args.map(_.tpe))
-          matchesType(tr, instResultType)
-        else None  //TODO (?)
-      case tr @ Assign(_, _) =>
-        matchesType(tr, defn.UnitType)
-      case tr @ Block(_, expr) =>
-        matchesType(tr, expr.tpe)
-      case tr @ If(_, thenPart, elsePart) =>
-        matchesType(tr, OrType(thenPart.tpe, elsePart.tpe))
-      case tr @ InlineIf(_, thenPart, elsePart) =>
-        matchesType(tr, OrType(thenPart.tpe, elsePart.tpe))
-      case tr @ InlineMatch(_, cases) =>
-        matchesType(tr, cases.map(_.body.tpe).reduce(OrType(_, _)))
-      // case Ident
-      case tr @ Inlined(expr, _, _) =>
-        matchesType(tr, expr.tpe)
-      case tr @ Lambda(meth, tpt) =>
-        if tpt.isDefined
-        then matchesType(tr, tpt.get.toType)
-        else None  // TODO (?)
-      case tr @ Literal(constant) =>
-        matchesType(tr, ConstantType(constant))
-      case tr @ Match(_, cases) =>
-        matchesType(tr, cases.map(_.body.tpe).reduce(OrType(_, _)))
-      case tr @ NamedArg(_, arg) =>
-        matchesType(tr, arg.tpe)
-      case tr @ New(tpt) =>
-        matchesType(tr, tpt.toType)
-      case tr @ Return(_, _) =>
-        matchesType(tr, defn.NothingType)
-      // case Select
-      case tr @ SeqLiteral(_, elemtpt) =>
-        matchesType(tr, defn.SeqTypeOf(elemtpt.toType))
-      // case Super
-      case tr @ This(qualifier) =>
-        qualifier.toType match
-          case pkg: PackageRef => matchesType(tr, pkg)
-          case tpe: TypeRef => matchesType(tr, ThisType(tpe))
-          case _ => None
-      case tr @ Throw(_) =>
-        matchesType(tr, defn.NothingType)
-      case tr @ Try(expr, cases, _) =>
-        matchesType(tr, cases.map(_.body.tpe).foldLeft(expr.tpe)(OrType(_, _)))
-      case tr @ Typed(_, tpt) =>
-        matchesType(tr, tpt.toType)
-      case tr @ While(_, _) =>
-        matchesType(tr, defn.UnitType)
-      case _ => Nil
-    ret.iterator.toList
-
-// -------------------------------------------------------
-// MatchingTypeRules: Checks that matchings' patterns follow the typing rules
-private object MatchingTypeRules extends ContextlessCheck[Tree] with ContextlessCheck.FullPreorderWalk[Tree]:
+// MatchingTypeCorrectness: Checks that matchings' patterns have the correct types
+private object MatchingTypeCorrectness extends ContextlessCheck[Tree] with ContextlessCheck.FullPreorderWalk[Tree]:
   private def matchesType(tpea: Type, tpeb: Type)(using tree: Tree)(using Context): Option[NotMatchesType] =
     if tpea.isSameType(tpeb) then None else Some(NotMatchesType(tpea, tpeb, tree))
 
@@ -318,7 +251,7 @@ private object TypeBoundsConformance extends ContextlessCheck[Tree] with Context
 
 // -------------------------------------------------------
 // TypeMemberBoundsConformance: Checks that type members' bounds conform to overridden bounds
-private object TypeMemberBoundsConformance extends ContextlessCheck[Tree] with ContextlessCheck.FullPreorderWalk[Tree]:
+private object TypeMemberOverridingBoundsConformance extends ContextlessCheck[Tree] with ContextlessCheck.FullPreorderWalk[Tree]:
   private def conformsBounds(boundsa: TypeBounds, boundsb: TypeBounds)(using tree: Tree)(using Context): Option[NotConformsBounds] =
     if boundsb.contains(boundsa) then None else Some(NotConformsBounds(boundsa, boundsb, tree))
 
@@ -357,8 +290,8 @@ private object MemberOverridingTypeConformance extends ContextlessCheck[Tree] wi
       case _ => Nil
 
 // -------------------------------------------------------
-// MemberOverridingRules: Checks that members with the same erasure indeed override
-private object MemberOverridingRules extends ContextlessCheck[Tree] with ContextlessCheck.FullPreorderWalk[Tree]:
+// MemberErasureOverridance: Checks that members with the same erasure indeed override
+private object MemberErasureOverridance extends ContextlessCheck[Tree] with ContextlessCheck.FullPreorderWalk[Tree]:
   private def overrides(sa: TermSymbol, sb: TermSymbol)(using tree: Tree)(using Context): Option[NotOverrides] =
     if sa.allOverriddenSymbols.exists(_ == sb) then None else Some(NotOverrides(sa, sb, tree))
 
@@ -381,7 +314,7 @@ private object MemberOverridingRules extends ContextlessCheck[Tree] with Context
       case _ => Nil
 
 // -------------------------------------------------------
-// LocalReferencesScope: Checks that local references are in scope
+// LocalReferencesScoping: Checks that local references are in scope
 private case class Scope(terms: Set[TermSymbol], types: Set[TypeSymbol]):
   def withTerm(ts: TermSymbol): Scope = copy(terms = terms + ts)
   def withTerms(tss: List[TermSymbol]): Scope = copy(terms = terms ++ tss)
@@ -391,7 +324,7 @@ private case class Scope(terms: Set[TermSymbol], types: Set[TypeSymbol]):
 private object Scope:
   def empty: Scope = Scope(Set.empty[TermSymbol], Set.empty[TypeSymbol])
 
-private object LocalReferencesScope extends ContextfulCheck[Tree, Scope] with ContextfulCheck.CustomWalkBySteps[Tree, Scope]:
+private object LocalReferencesScoping extends ContextfulCheck[Tree, Scope] with ContextfulCheck.CustomWalkBySteps[Tree, Scope]:
   override protected def initialContext: Scope = Scope.empty
 
   override protected def step(tree: Tree, context: Scope)(using Context): List[(Tree, Scope)] =  //PRUNE BRANCHES?
@@ -426,9 +359,11 @@ private object LocalReferencesScope extends ContextfulCheck[Tree, Scope] with Co
         }
         (resultTpt, nc) :: rhs.map((_, nc)).toList ::: ps
       case TypeLambdaTree(tparams, body) =>
-        (body, context.withTypes(tparams.map(_.symbol))) :: tparams.map((_, context.withTypes(tparams.map(_.symbol))))
+        val nc = context.withTypes(tparams.map(_.symbol))
+        (body, nc) :: tparams.map((_, nc))
       case PolyTypeDefinitionTree(tparams, body) =>
-        (body, context.withTypes(tparams.map(_.symbol))) :: tparams.map((_, context.withTypes(tparams.map(_.symbol))))
+        val nc = context.withTypes(tparams.map(_.symbol))
+        (body, nc) :: tparams.map((_, nc))
       case CaseDef(pattern, guard, body) =>
         /*
         def getTypeBindings(tpe: Type): List[TypeSymbol] = tpe match
@@ -477,3 +412,73 @@ private object LocalReferencesScope extends ContextfulCheck[Tree, Scope] with Co
   override protected def checkT(tree: Tree, context: Scope)(using Context): List[NotInScope] =
     given Tree = tree
     for tpe <- portalTreeToType(tree); p <- _TypeCheck(context).check(tpe)(using Filter.empty[Type]) yield p.asInstanceOf[NotInScope]
+
+
+
+// -------------------------------------------------------
+// ExprTypeRules: Checks that expressions' types follow the typing rules
+private object ExprTypeRules extends ContextlessCheck[Tree] with ContextlessCheck.FullPreorderWalk[Tree]:
+  private def matchesType(term: TermTree, tpe: Type)(using tree: Tree)(using Context): Option[NotMatchesType] =
+    if term.tpe.isSameType(tpe) then None else Some(NotMatchesType(term.tpe, tpe, tree))
+
+  override protected def checkT(tree: Tree)(using Context): List[NotMatchesType] =
+    given Tree = tree
+    val ret = tree match
+      case tr @ Apply(fun, args) =>
+        @tailrec def isApplyNew(tree: TermTree)(using Context): Boolean = tree match
+          case Apply(fn, _) => isApplyNew(fn)
+          case TypeApply(fn, _) => isApplyNew(fn)
+          case Block(_, expr) => isApplyNew(expr)
+          case Select(New(_), SignedName(nme.Constructor, _, _)) => true
+          case _ => false
+        if !isApplyNew(tr)
+        then
+          val instResultType = fun.tpe.widen.asInstanceOf[MethodType].instantiate(args.map(_.tpe))
+          matchesType(tr, instResultType)
+        else None  //TODO (?)
+      case tr @ Assign(_, _) =>
+        matchesType(tr, defn.UnitType)
+      case tr @ Block(_, expr) =>
+        matchesType(tr, expr.tpe)
+      case tr @ If(_, thenPart, elsePart) =>
+        matchesType(tr, OrType(thenPart.tpe, elsePart.tpe))
+      case tr @ InlineIf(_, thenPart, elsePart) =>
+        matchesType(tr, OrType(thenPart.tpe, elsePart.tpe))
+      case tr @ InlineMatch(_, cases) =>
+        matchesType(tr, cases.map(_.body.tpe).reduce(OrType(_, _)))
+      // case Ident
+      case tr @ Inlined(expr, _, _) =>
+        matchesType(tr, expr.tpe)
+      case tr @ Lambda(meth, tpt) =>
+        if tpt.isDefined
+        then matchesType(tr, tpt.get.toType)
+        else None  // TODO (?)
+      case tr @ Literal(constant) =>
+        matchesType(tr, ConstantType(constant))
+      case tr @ Match(_, cases) =>
+        matchesType(tr, cases.map(_.body.tpe).reduce(OrType(_, _)))
+      case tr @ NamedArg(_, arg) =>
+        matchesType(tr, arg.tpe)
+      case tr @ New(tpt) =>
+        matchesType(tr, tpt.toType)
+      case tr @ Return(_, _) =>
+        matchesType(tr, defn.NothingType)
+      // case Select
+      case tr @ SeqLiteral(_, elemtpt) =>
+        matchesType(tr, defn.SeqTypeOf(elemtpt.toType))
+      // case Super
+      case tr @ This(qualifier) =>
+        qualifier.toType match
+          case pkg: PackageRef => matchesType(tr, pkg)
+          case tpe: TypeRef => matchesType(tr, ThisType(tpe))
+          case _ => None
+      case tr @ Throw(_) =>
+        matchesType(tr, defn.NothingType)
+      case tr @ Try(expr, cases, _) =>
+        matchesType(tr, cases.map(_.body.tpe).foldLeft(expr.tpe)(OrType(_, _)))
+      case tr @ Typed(_, tpt) =>
+        matchesType(tr, tpt.toType)
+      case tr @ While(_, _) =>
+        matchesType(tr, defn.UnitType)
+      case _ => Nil
+    ret.iterator.toList
