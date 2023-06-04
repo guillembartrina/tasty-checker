@@ -1,6 +1,6 @@
 package tastychecker
 
-import java.net.{URI}
+import java.net.URI
 import java.nio.file.{Path, Paths, FileSystems}
 
 import tastyquery.*

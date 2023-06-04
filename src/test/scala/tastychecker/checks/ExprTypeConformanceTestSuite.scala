@@ -11,52 +11,28 @@ import tastyquery.Trees.*
 import tastyquery.Types.*
 
 
-class ExprTypeConformanceTestSuite extends BaseTestSuite:
+//Note: This TestSuite is a bit overkill because we are testing more things that the ones strictly necessary
+class ExprTypeConformanceTestSuite extends BaseCheckTestSuite:
 
-  object Data:
-    given Context = TestData.test_auxiliar_context
-
-    val defaultTermName: TermName = termName("termName")
-    val defaultTypeName: TypeName = typeName("typeName")
-    val defaultTermSymbol: TermSymbol = defn.Any_toString
-    val defaultTypeTree: TypeTree = TypeIdent(typeName("Int"))(defn.IntType)(NoSpan)
-    val defaultTermTree: TermTree = Literal(Constant(0))(NoSpan)
-    val defaultPatternTree: PatternTree = WildcardPattern(defn.IntType)(NoSpan)
-
-    private def getTerm(c: ClassSymbol)(n: String): TermSymbol = c.getMember(termName(n)).get
-    private def getMeth(c: ClassSymbol)(n: String): TermSymbol = c.getNonOverloadedDecl(termName(n)).get
-    private def getType(c: ClassSymbol)(n: String): TypeSymbol = c.getMember(typeName(n)).get
-    private def decomposeValDef(t: TermSymbol): (Type, TypeTree, TermTree) =
-      val tree = t.tree.get.asInstanceOf[ValDef]
-      (tree.tpt.toType, tree.tpt, tree.rhs.get)
-    private def createIdent(t: TermSymbol): Ident = Ident(t.name)(TermRef(NoPrefix, t))(NoSpan)
-    private def createTypeIdent(t: TypeSymbol): TypeIdent = TypeIdent(t.name)(TypeRef(NoPrefix, t))(NoSpan)
-
-    val auxiliarPackage: PackageSymbol = defn.RootPackage.getPackageDecl(Names.termName("auxiliar")).get
-    val constructsClass: ClassSymbol = auxiliarPackage.getDecl(Names.moduleClassName("Constructs")).get.asClass
-
-    val getTermFromConstructs = getTerm(constructsClass)
-    val getMethFromConstructs = getMeth(constructsClass)
-    val getTypeFromConstructs = getType(constructsClass)
-
+  private object Data extends BaseData:
     val anyKindFull @ (anyKindType, anyKindTypeTree, anyKindTermTree) = (
       defn.AnyKindType,
       TypeWrapper(defn.AnyKindType)(NoSpan),
       New(TypeWrapper(defn.AnyKindType)(NoSpan))(NoSpan)
-      )  // Hack
-    val anyFull @ (anyType, anyTypeTree, anyTermTree) = decomposeValDef(getTermFromConstructs("any"))
-    val anyValFull @ (anyValType, anyValTypeTree, anyValTermTree) = decomposeValDef(getTermFromConstructs("anyVal"))
-    val booleanFull @ (booleanType, booleanTypeTree, booleanTermTree) = decomposeValDef(getTermFromConstructs("boolean"))
-    val _falseFull @ (_falseType, _falseTypeTree, _falseTermTree) = decomposeValDef(getTermFromConstructs("_false"))
-    val stringFull @ (stringType, stringTypeTree, stringTermTree) = decomposeValDef(getTermFromConstructs("string"))
+    )  // Hacky
+    val anyFull @ (anyType, anyTypeTree, anyTermTree) = decomposeValDef(getTerm("any"))
+    val anyValFull @ (anyValType, anyValTypeTree, anyValTermTree) = decomposeValDef(getTerm("anyVal"))
+    val booleanFull @ (booleanType, booleanTypeTree, booleanTermTree) = decomposeValDef(getTerm("boolean"))
+    val _falseFull @ (_falseType, _falseTypeTree, _falseTermTree) = decomposeValDef(getTerm("_false"))
+    val stringFull @ (stringType, stringTypeTree, stringTermTree) = decomposeValDef(getTerm("string"))
 
-    val anyRefFull @ (anyRefType, anyRefTypeTree, anyRefTermTree) = decomposeValDef(getTermFromConstructs("anyRef"))
-    val throwableFull @ (throwableType, throwableTypeTree, throwableTermTree) = decomposeValDef(getTermFromConstructs("throwable"))
-    val nullFull @ (nullType, nullTypeTree, nullTermTree) = decomposeValDef(getTermFromConstructs("_null"))
+    val anyRefFull @ (anyRefType, anyRefTypeTree, anyRefTermTree) = decomposeValDef(getTerm("anyRef"))
+    val throwableFull @ (throwableType, throwableTypeTree, throwableTermTree) = decomposeValDef(getTerm("throwable"))
+    val nullFull @ (nullType, nullTypeTree, nullTermTree) = decomposeValDef(getTerm("_null"))
 
-    val unitFull @ (unitType, unitTypeTree, unitTermTree) = decomposeValDef(getTermFromConstructs("unit"))
+    val unitFull @ (unitType, unitTypeTree, unitTermTree) = decomposeValDef(getTerm("unit"))
 
-    val seqBooleanFull @ (seqBooleanType, seqBooleanTypeTree, seqBooleanTermTree) = decomposeValDef(getTermFromConstructs("seqBoolean"))
+    val seqBooleanFull @ (seqBooleanType, seqBooleanTypeTree, seqBooleanTermTree) = decomposeValDef(getTerm("seqBoolean"))
     val repeatedBooleanFull @ (repeatedType, repeatedTypeTree, repeatedTermTree) = (
       defn.RepeatedTypeOf(booleanType),
       AppliedTypeTree(TypeIdent(Names.typeName("<repeated>"))(defn.RepeatedTypeUnapplied)(NoSpan), List(booleanTypeTree))(NoSpan),
@@ -64,40 +40,27 @@ class ExprTypeConformanceTestSuite extends BaseTestSuite:
         AppliedTypeTree(TypeIdent(Names.typeName("<repeated>"))(defn.RepeatedTypeUnapplied)(NoSpan), List(booleanTypeTree))(NoSpan))(NoSpan)
     )
 
-    val methodBooleanToBooleanTermSymbol = getMethFromConstructs("methodBooleanToBoolean")
+    val methodBooleanToBooleanTermSymbol = getMeth("methodBooleanToBoolean")
     val funBooleanToBooleanTermTree = createIdent(methodBooleanToBooleanTermSymbol)
 
-    val methodByNameBooleanToBooleanTermSymbol = getMethFromConstructs("methodByNameBooleanToBoolean")
+    val methodByNameBooleanToBooleanTermSymbol = getMeth("methodByNameBooleanToBoolean")
     val funByNameBooleanToBooleanTermTree = createIdent(methodByNameBooleanToBooleanTermSymbol)
 
-    val methodBooleanAndDependentArgumentToBooleanTypeSymbol = getMethFromConstructs("methodBooleanAndDependentArgumentToBoolean")
+    val methodBooleanAndDependentArgumentToBooleanTypeSymbol = getMeth("methodBooleanAndDependentArgumentToBoolean")
     val funBooleanAndDependentArgumentToBooleanTermTree = createIdent(methodBooleanAndDependentArgumentToBooleanTypeSymbol)
 
-
-    val instanceClassWithBooleanTypeMember @ (instanceClassWithBooleanTypeMemberType,
-      instanceClassWithBooleanTypeMemberTypeTree, instanceClassWithBooleanTypeMemberTermTree) =
-      decomposeValDef(getTermFromConstructs("instanceClassWithBooleanTypeMember"))    
-
-    val methodClassWithTypeMemberTermSymbol = getMethFromConstructs("methodClassWithTypeMember")
-    val funClassWithTypeMemberTermTree = createIdent(methodClassWithTypeMemberTermSymbol)
-
-    val traitWithSAMBooleanToBooleanTypeSymbol = getTypeFromConstructs("TraitWithSAMBooleanToBoolean")
+    val traitWithSAMBooleanToBooleanTypeSymbol = getType("TraitWithSAMBooleanToBoolean")
     val traitWithSAMBooleanToBooleanTypeTree = createTypeIdent(traitWithSAMBooleanToBooleanTypeSymbol)
 
-    val traitWithSAMWithDependentResultTypeSymbol = getTypeFromConstructs("TraitWithSAMWithDependentResult")
+    val traitWithSAMWithDependentResultTypeSymbol = getType("TraitWithSAMWithDependentResult")
     val traitWithSAMWithDependentResultTypeTree = createTypeIdent(traitWithSAMWithDependentResultTypeSymbol)
 
-    val partialFunctionBooleanToBooleanTypeSymbol = getTypeFromConstructs("PartialFunctionBooleanToBoolean")  // Hack
+    val partialFunctionBooleanToBooleanTypeSymbol = getType("PartialFunctionBooleanToBoolean")  // Hack
     val partialFunctionBooleanToBooleanTypeTree = TypeWrapper(partialFunctionBooleanToBooleanTypeSymbol.staticRef.dealias)(NoSpan)
-
+  
   import Data.*
 
-  private val testWithTestAuxiliarContext = testWithContext(TestData.test_auxiliar_context)
-
-  private def assertChecksWithNoProblems(tree: Tree)(using Context): Unit =
-    val checker = Checker(Check.allChecks)
-    checker.check(tree)
-    assertNoProblems(checker.problems)
+  private def assertChecksExprTypeConformance(using Context) = assertChecks(List(ExprTypeConformance))
 
   private def testAssumptions
     (types: List[Type], typeTrees: List[TypeTree], termTrees: List[TermTree], decider: (Int, Int) => Boolean)
@@ -133,11 +96,10 @@ class ExprTypeConformanceTestSuite extends BaseTestSuite:
       yield
         val (t, term, tpe) = builder(a, b)
         val tree = t(NoSpan)
-        val checker = Checker(Check.checks(List("ExprTypeConformance")))
-        checker.check(tree)
+        val checker = TreeChecker(List(ExprTypeConformance))
         if decider((a, i), (b, j))
-        then assertProblems(checker.problems, List(NotConformsType(term.tpe, tpe, tree)))
-        else assertNoProblems(checker.problems)
+        then assertProblems(checker.check(tree), List(NotConformsType(term.tpe, tpe, tree)))
+        else assertNoProblems(checker.check(tree))
       
 
   private def defaultExhaustiveTests(using Context) = exhaustiveTestGenerator(
@@ -176,7 +138,7 @@ class ExprTypeConformanceTestSuite extends BaseTestSuite:
       (Template(defaultDefDef, Nil, None, List(stat)), stat, defn.AnyType)
     }
 
-    assertChecksWithNoProblems(Template(defaultDefDef, Nil, None, Nil)(NoSpan))
+    assertChecksExprTypeConformance(Template(defaultDefDef, Nil, None, Nil)(NoSpan))
   }
 
   testWithTestAuxiliarContext("tree_CaseDef") {
@@ -184,7 +146,7 @@ class ExprTypeConformanceTestSuite extends BaseTestSuite:
       (CaseDef(defaultPatternTree, Some(guard), defaultTermTree), guard, defn.BooleanType)
     }
 
-    assertChecksWithNoProblems(CaseDef(defaultPatternTree, None, defaultTermTree)(NoSpan))
+    assertChecksExprTypeConformance(CaseDef(defaultPatternTree, None, defaultTermTree)(NoSpan))
   }
 
   testWithTestAuxiliarContext("tree_ValDef") {
@@ -192,7 +154,7 @@ class ExprTypeConformanceTestSuite extends BaseTestSuite:
       (ValDef(defaultTermName, tpt, Some(rhs), defaultTermSymbol), rhs, tpt.toType)
     }
 
-    assertChecksWithNoProblems(ValDef(defaultTermName, defaultTypeTree, None, defaultTermSymbol)(NoSpan))
+    assertChecksExprTypeConformance(ValDef(defaultTermName, defaultTypeTree, None, defaultTermSymbol)(NoSpan))
   }
 
   testWithTestAuxiliarContext("tree_DefDef") {
@@ -200,7 +162,7 @@ class ExprTypeConformanceTestSuite extends BaseTestSuite:
       (DefDef(defaultTermName, Nil, resultTpt, Some(rhs), defaultTermSymbol), rhs, resultTpt.toType)
     }
 
-    assertChecksWithNoProblems(DefDef(defaultTermName, Nil, defaultTypeTree, None, defaultTermSymbol)(NoSpan))
+    assertChecksExprTypeConformance(DefDef(defaultTermName, Nil, defaultTypeTree, None, defaultTermSymbol)(NoSpan))
   }
 
   testWithTestAuxiliarContext("tree_Apply") {
@@ -223,7 +185,7 @@ class ExprTypeConformanceTestSuite extends BaseTestSuite:
       })
     }
 
-    assertChecksWithNoProblems(Apply(funBooleanToBooleanTermTree, Nil)(NoSpan))
+    assertChecksExprTypeConformance(Apply(funBooleanToBooleanTermTree, Nil)(NoSpan))
   }
 
   testWithTestAuxiliarContext("tree_Assign") {
@@ -237,7 +199,7 @@ class ExprTypeConformanceTestSuite extends BaseTestSuite:
       (Block(List(stat), defaultTermTree), stat, defn.AnyType)
     }
 
-    assertChecksWithNoProblems(Block(Nil, defaultTermTree)(NoSpan))
+    assertChecksExprTypeConformance(Block(Nil, defaultTermTree)(NoSpan))
   }
 
   testWithTestAuxiliarContext("tree_If") {
@@ -258,7 +220,7 @@ class ExprTypeConformanceTestSuite extends BaseTestSuite:
       (InlineMatch(Some(stat), List(defaultCaseDef)), stat, defn.AnyType)
     }
 
-    assertChecksWithNoProblems(InlineMatch(None, List(defaultCaseDef))(NoSpan))
+    assertChecksExprTypeConformance(InlineMatch(None, List(defaultCaseDef))(NoSpan))
   }
 
   testWithTestAuxiliarContext("tree_Lambda") {  //Very hacky test :/
@@ -330,7 +292,7 @@ class ExprTypeConformanceTestSuite extends BaseTestSuite:
       ).widen.asInstanceOf[MethodType])
     }
 
-    assertChecksWithNoProblems(Lambda(defaultTermTree, None)(NoSpan))
+    assertChecksExprTypeConformance(Lambda(defaultTermTree, None)(NoSpan))
   }
 
   testWithTestAuxiliarContext("tree_Match") {
@@ -346,7 +308,7 @@ class ExprTypeConformanceTestSuite extends BaseTestSuite:
       methodBooleanToBooleanTermSymbol.declaredType.asInstanceOf[MethodType].resultType)
     }
 
-    assertChecksWithNoProblems(Return(None, methodBooleanToBooleanTermSymbol)(NoSpan))
+    assertChecksExprTypeConformance(Return(None, methodBooleanToBooleanTermSymbol)(NoSpan))
   }
 
   testWithTestAuxiliarContext("tree_SeqLiteral") {
@@ -354,7 +316,7 @@ class ExprTypeConformanceTestSuite extends BaseTestSuite:
       (SeqLiteral(List(elem), elemtpt), elem, elemtpt.toType)
     }
 
-    assertChecksWithNoProblems(SeqLiteral(Nil, defaultTypeTree)(NoSpan))
+    assertChecksExprTypeConformance(SeqLiteral(Nil, defaultTypeTree)(NoSpan))
   }
 
   testWithTestAuxiliarContext("tree_Throw") {
@@ -400,7 +362,7 @@ class ExprTypeConformanceTestSuite extends BaseTestSuite:
       (Try(expr, List(), Some(unitTermTree)), expr, defn.AnyType)
     }
 
-    assertChecksWithNoProblems(Try(defaultTermTree, List(), None)(NoSpan))
+    assertChecksExprTypeConformance(Try(defaultTermTree, List(), None)(NoSpan))
   }
 
   testWithTestAuxiliarContext("tree_Typed") {

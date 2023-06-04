@@ -1,5 +1,7 @@
 package dummy
 
+import scala.annotation.targetName
+
 
 object ExprTypeConformance {
 
@@ -283,7 +285,7 @@ object ExprTypeConformance {
 
 }
 
-object MatchingTypeRules {
+object MatchingTypeCorrectness {
   val match0 = (0: Any) match
     case x => x
     case _ => 0
@@ -343,8 +345,11 @@ object MatchingTypeRules {
 
   val match9 = 0 match
     case t @ y: Int => t
-    case (t @ (x: Int)): Int => 1
-
+    case (t @ (x: Int)): Int => 
+      
+  val match10 = (0: Any) match
+    case Some(_: Int | _: Double) => 0
+  
 }
 
 object TypeBoundsConformance {
@@ -407,7 +412,7 @@ object TypeBoundsConformance {
   val yl5: X[Int] = Nil
 }
 
-object TypeMemberBoundsConformance {
+object TypeMemberOverridingBoundsConformance {
   class SH1 { type T <: Int }
   class SH2 extends SH1 { type T <: 0 }
   class SH3 extends SH2 { type T = 0 }
@@ -416,8 +421,6 @@ object TypeMemberBoundsConformance {
   trait DHB extends DHA { type T <: DHB }
   trait DHC extends DHA { type T <: DHC }
   trait DHD extends DHB, DHC { type T <: DHD }
-
-  // Example volatile
 
   class T1 { type T <: Set[_] }
   class T2 extends T1 { type T <: Null }
@@ -504,16 +507,31 @@ object MemberOverridingTypeConformance {
   class E1 extends Object:
     override def toString(): String = "string"
 
+  abstract class F1:
+    def meth(x: List[Int]): Int
+    @targetName("meth2")
+    def meth(x: List[Boolean]): Int = 0
+    @targetName("y")
+    def x(x: Int): Int
+
+  class F2 extends F1:
+    @targetName("meth")
+    override def meth(x: List[Int]): Int = 0
+    @targetName("y")
+    override def x(x: Int): Int = 0
 }
 
-object MemberOverridingRules {
+object MemberErasureOverridance {
   abstract class MOR0:
     val m: Int = 0
     def me[A](x: A): A = x
+    def sn(x: List[Int]): Unit
+    @targetName("sn2") def sn(x: List[Double]): Unit = ()
   abstract class MOR1 extends MOR0:
     val mem: Int
     def meth(x: List[Int]): Int = 0
     def meth2[Boolean](x: Int): Int = 0
+    override def sn(x: List[Int]): Unit = ()
   class MOR2 extends MOR1:
     override val m: Int = 0
     override val mem: 0 = 0
@@ -522,7 +540,7 @@ object MemberOverridingRules {
     override def me[B](x: B): B = x
 }
 
-object ScopedReferences {
+object LocalReferencesScoping {
   val scAux1 = 0
   val sc1 = scAux1  //not the case
 
@@ -537,6 +555,12 @@ object ScopedReferences {
   }
 
   val sc31 = {
+    def innerDef(x: Int) = 0
+    val localRef = innerDef(0)
+    ()
+  }
+
+  val sc32 = {
     val innerVal = 0
     {
       val innerRef = innerVal
@@ -556,8 +580,46 @@ object ScopedReferences {
   val scAux41 = new SC11
   val sc4 = scAux4(scAux41, 0, scAux41)
 
+  val sc5 = (0: Any) match
+    case Some(x) => x
+    case x => x
 
-  //def scAux2(x: Int, y: x.type, )
+  val sc6 = {
+    class A
+    val x: A = new A()
+  }
+
+  val sc61 = {
+    type T = Int
+    val x: T = 0
+  }
+
+  def scAux7[T](x: T): T = x
+  val sc7 = scAux7(false)
+
+
+  val sc8: (List[Int] match
+    case List[t] => t) = 0
+
+  def sc9[A]: (List[Int] match
+    case List[t] => t
+    case A => A  
+  ) = 0
+
+  val sc10 = (List(0): Any) match
+    case a: List[t] => a.head
+    //case b: Option[?] => b
+
+  type SC12[X] = X match {
+    case List[t] => t
+  }
+  def sc12[X](x: X): SC12[X] = x match
+    case is: List[l] => is.head
+
+  import scala.quoted.*
+  def sc13(using quotes: Quotes) =
+    Type.of[Any] match
+      case '[Option[a]] => '{ () }
 }
 
 // -----------
@@ -570,5 +632,3 @@ object Dummy {
     case List(elems: _*) => 0
     case _               => 1
 }
-
-// -----------
