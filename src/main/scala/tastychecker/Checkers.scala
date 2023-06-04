@@ -3,23 +3,24 @@ package tastychecker
 import java.nio.file.Path
 
 import tastyquery.Contexts
+import tastyquery.Contexts.Context
 import tastyquery.Classpaths.Classpath
 import tastyquery.jdk.ClasspathLoaders
-import tastyquery.Contexts.Context
 import tastyquery.Trees.Tree
 import tastyquery.Symbols.TermOrTypeSymbol
 
 
-private class Checker(val checks: List[Check], val filter: Filter = Filter.empty):
-  private val compactedChecks = Check.tryCompactChecks(checks)
+private class TreeChecker(val checks: List[TreeCheck], val filter: TreeFilter = TreeFilter.empty):
+  private val mergedTreeChecks = Check.tryMerge(checks)
   def check(tree: Tree)(using Context): List[Problem] =
-    compactedChecks.flatMap(_.check(tree)(using filter))
+    mergedTreeChecks.flatMap(_.check(tree)(using filter))
 
+// ----------
 
 case class Result(entryPath: Path, toplevelSymbol: TermOrTypeSymbol, problem: Problem)
 
-class TASTyChecker(val checks: List[Check], val filter: Filter = Filter.empty):
-  private val checker = Checker(checks, filter)
+class TASTyChecker(val checks: List[TreeCheck], val filter: TreeFilter = TreeFilter.empty):
+  private val checker = TreeChecker(checks, filter)
   def check(targetPaths: List[Path], extraPaths: List[Path] = List.empty[Path]): List[Result] =
     val targetClasspath = ClasspathLoaders.read(targetPaths)
     val extraClasspath = ClasspathLoaders.read(extraPaths)
@@ -27,7 +28,7 @@ class TASTyChecker(val checks: List[Check], val filter: Filter = Filter.empty):
     for
       (entry, entryPath) <- targetClasspath.entries.toList.zip(targetPaths)
       symbol <- context.findSymbolsByClasspathEntry(entry).toList
-      symbolTree <- symbol.tree(using context).toList  //For java symbols, otherwise: symbolTree = symbol.tree(using context).get
+      symbolTree <- symbol.tree(using context).toList  //Java symbols do not have a tree
       problem <- checker.check(symbolTree)(using context)
     yield
       Result(entryPath, symbol, problem)
