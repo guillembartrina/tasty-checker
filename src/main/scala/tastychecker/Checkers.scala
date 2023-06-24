@@ -19,8 +19,8 @@ private class TreeChecker(val checks: List[TreeCheck], val filter: TreeFilter = 
 
 case class Result(entryPath: Path, toplevelSymbol: TermOrTypeSymbol, problem: Problem)
 
-class TASTyChecker(val checks: List[TreeCheck], val filter: TreeFilter = TreeFilter.empty):
-  private val checker = TreeChecker(checks, filter)
+class TASTyChecker(override val checks: List[TreeCheck], override val filter: TreeFilter = TreeFilter.empty)
+  extends TreeChecker(checks, filter):
   def check(targetPaths: List[Path], extraPaths: List[Path] = List.empty[Path]): List[Result] =
     val targetClasspath = ClasspathLoaders.read(targetPaths)
     val extraClasspath = ClasspathLoaders.read(extraPaths)
@@ -29,7 +29,7 @@ class TASTyChecker(val checks: List[TreeCheck], val filter: TreeFilter = TreeFil
       (entry, entryPath) <- targetClasspath.entries.toList.zip(targetPaths)
       symbol <- context.findSymbolsByClasspathEntry(entry).toList
       symbolTree <- symbol.tree(using context).toList  //Java symbols do not have a tree
-      problem <- checker.check(symbolTree)(using context)
+      problem <- check(symbolTree)(using context)
     yield
       Result(entryPath, symbol, problem)
 

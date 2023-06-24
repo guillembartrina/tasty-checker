@@ -260,7 +260,7 @@ private object TypeMemberOverridingBoundsConformance extends ContextlessCheck[Tr
     tree match
       case TypeMember(_, _, symbol) =>
         for
-          s <- symbol.nextOverriddenSymbol.toList
+          s <- symbol.allOverriddenSymbols.toList
           b = s.asInstanceOf[TypeMemberSymbol].bounds.mapBounds(_.asSeenFrom(symbol.owner.asClass.thisType, s.owner))
           p <- conformsBounds(symbol.bounds, b)
         yield p
@@ -275,9 +275,9 @@ private object MemberOverridingTypeConformance extends ContextlessCheck[Tree] wi
   override protected def checkT(tree: Tree)(using Context): List[NotConformsType] =
     def helper(symbol: TermSymbol): List[NotConformsType] =
       def methodize(tpe: Type): Type = if !tpe.isInstanceOf[MethodType] then MethodType(Nil, Nil, tpe) else tpe
+      val ojm = symbol.allOverriddenSymbols.find(_.asTerm.sourceLanguage == SourceLanguage.Java).isDefined
       for
-        s <- symbol.nextOverriddenSymbol.toList
-        ojm = symbol.allOverriddenSymbols.find(x => x.asTerm.sourceLanguage == SourceLanguage.Java).isDefined
+        s <- symbol.allOverriddenSymbols.toList
         tpea = if ojm then methodize(symbol.declaredType) else symbol.declaredType
         tpeb = if ojm then methodize(s.asTerm.declaredType) else s.asTerm.declaredType
         tpebp = tpeb.asSeenFrom(symbol.owner.asClass.thisType, s.owner)
