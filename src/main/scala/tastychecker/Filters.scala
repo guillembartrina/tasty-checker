@@ -22,25 +22,12 @@ object TreeFilter:
         case Select(qualifier, SignedName(SimpleName("apply"), _, _)) if qualifier.tpe.widen.isOfClass(ctx.findTopLevelClass("scala.PolyFunction")) =>  //PolyFunction
       })) =>
       case tree if exists(tree, Filter({
-        case tpe: TypeTree if tpe.toType.isInstanceOf[TypeRef] && tpe.toType.asInstanceOf[TypeRef].optSymbol.get.asType.isOpaqueTypeAlias =>  //Opaque Type Aliases
-      })) =>
-      case tree if exists(tree, Filter({
-        case tpe: TypeTree if tpe.toType.widen.isOfClass(ctx.findTopLevelClass("scala.Tuple2")) =>  //Tuple/Tuple2
-      })) =>
-      case tree if exists(tree, Filter({
         case term: TermTree if term.tpe.widen.isOfClass(ctx.findTopLevelClass("java.lang.Class")) =>  //Class
       })) =>
       case ValDef(_, _, _, symbol) if throws[UnsupportedOperationException](symbol.signature) =>  //Erasure: AndType
       case DefDef(_, _, _, _, symbol) if throws[UnsupportedOperationException](symbol.signature) =>  //Erasure: AndType
       
       //TEMPORARY
-      case tree if exists(tree, Filter({
-        case tpe: TypeTree if tpe.toType.isInstanceOf[AppliedType] && tpe.toType.asInstanceOf[AppliedType].tycon.isInstanceOf[TypeLambda] =>  //AppliedType
-        case term: TermTree if term.tpe.widen.isInstanceOf[AppliedType] && term.tpe.widen.asInstanceOf[AppliedType].args(0).isInstanceOf[WildcardTypeBounds] =>  //AppliedType
-        case wc: WildcardPattern if exists(wc.tpe, Filter({
-          case tf: TypeRef if tf.prefix == NoPrefix =>
-        })) =>  //Type bindings in matches
-      })) =>
       case tree if portalTreeToType(tree).exists{
         exists(_, Filter({
           case tpe: AppliedType if tpe.args.exists{
