@@ -6,5 +6,9 @@ lazy val root = project
         name := "tasty-checker",
         description := " Reference checker for TASTy, the Scala 3 interchange format",
         version := "0.0.0",
-        libraryDependencies += "ch.epfl.scala" %% "tasty-query" % "0.8.1"
+        libraryDependencies += "ch.epfl.scala" %% "tasty-query" % "0.8.4",
+        envVars += {
+          "TASTYCHECKER_DEFAULTCLASSPATH" -> Attributed.data((Compile / fullClasspath).value).map(_.getAbsolutePath).mkString(";")
+        },
+        fork := true
     )
