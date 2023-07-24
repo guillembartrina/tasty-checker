@@ -509,16 +509,12 @@ object MemberOverridingTypeConformance {
 
   abstract class F1:
     def meth(x: List[Int]): Int
-    @targetName("meth2")
-    def meth(x: List[Boolean]): Int = 0
-    @targetName("y")
-    def x(x: Int): Int
+    @targetName("meth2") def meth(x: List[Boolean]): Int = 0
+    @targetName("y") def x(x: Int): Int
 
   class F2 extends F1:
-    @targetName("meth")
-    override def meth(x: List[Int]): Int = 0
-    @targetName("y")
-    override def x(x: Int): Int = 0
+    @targetName("meth") override def meth(x: List[Int]): Int = 0
+    @targetName("y") override def x(x: Int): Int = 0
 }
 
 object MemberErasureOverridance {

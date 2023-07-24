@@ -12,22 +12,27 @@ import tastyquery.Trees.*
 import tastyquery.Types.*
 
 
-@munit.IgnoreSuite
 class DummyTestSuite extends BaseTestSuite:
 
-  testSymbolWithContext(TestData.testlib_dummy_context)("dummy")("dummy.ExprTypeConformance[$]") { symbol =>
+  testSymbolWithContext(TestData.testlib_tastyquery_context)("dummy")("subtyping.TypesFromTASTy[$].MyEnum[$].Parametric[$].MirroredMonoType/T") { symbol =>
     //val s = symbol.asClass.getDecl(termName("xxx")).get
     //val s = symbol.asClass.getNonOverloadedDecl(termName("castMatchResultWithBind")).get
-    val s = symbol.asClass.getNonOverloadedDecl(SimpleName("defDef1"))
-
-    println(s)
+    //val s = symbol.asClass.getNonOverloadedDecl(typeName("MatchTypeEnums")).
+    
+    val s = symbol
 
     //println(s.foreach(x => println(" " + x.declaredType + "\n\t" + x.asTerm.annotations)))
     //println(s.foreach(x => println(" " + x.asTerm.allOverriddenSymbols.toList)))
 
-    //val t = s.tree.get
+    val t = s.tree.get
+    println(t.asInstanceOf[TypeMember].rhs
+    .asInstanceOf[InferredTypeBoundsTree]._1
+    .asInstanceOf[TypeAlias].alias
+    .asInstanceOf[AppliedType].tycon.typeParams(0).bounds)
     //println("TREE " + t + "\n")
     //t.asInstanceOf[DefDef].rhs.get.asInstanceOf[TypeApply].fun.asInstanceOf[Select].qualifier.tpe.print
+
+    //println(t.asInstanceOf[TypeMember].rhs.asInstanceOf[TypeAliasDefinitionTree].alias)
 
     //println("K >" + t.asInstanceOf[DefDef].rhs.get.reduce(x => println(" " + x + " "))((x, y) => ()))
 
@@ -47,6 +52,8 @@ class DummyTestSuite extends BaseTestSuite:
     //println("rhs:  " + tp.rhs.get.tpe)
     //println(tp.rhs.get)
 
+    //println(">>" + tp.rhs.get.asInstanceOf[TypeApply].fun.tpe)
+
     //>Block
     //val tpp = tp.rhs.get.asInstanceOf[Block].expr
     //println("TYPE " + tpp.tpe)
@@ -58,6 +65,8 @@ class DummyTestSuite extends BaseTestSuite:
     //val tpp = tp.rhs.get.asInstanceOf[Apply].fun
     //println("TYPE " + tpp.tpe)
     //println(tpp.asInstanceOf[Select].qualifier.asInstanceOf[Ident].tpe)
+
+    //tp.print
 
     //>Match
     //val tpp = tp.rhs.get.asInstanceOf[Match]
@@ -88,6 +97,6 @@ class DummyTestSuite extends BaseTestSuite:
     //println("---------")
     //println(s.allOverriddenSymbols.toList.foreach(x => println("> " + x.asTerm + " " + x.asTerm.sourceLanguage)))
 
-    val checker = TreeChecker(TreeCheck.someChecks("LocalReferencesScope" :: Nil), TreeFilter.empty)
-    println("PROBLEMS:\n" + checker.check(symbol.tree.get))
+    val checker = TreeChecker(TreeCheck.someChecks("TypeBoundsConformance" :: Nil), TreeFilter.empty)
+    println("PROBLEMS:\n" + checker.check(t))
   }

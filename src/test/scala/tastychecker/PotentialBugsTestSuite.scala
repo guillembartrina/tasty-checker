@@ -12,8 +12,7 @@ import tastyquery.Trees.*
 import tastyquery.Types.*
 
 
-@munit.IgnoreSuite
-class PotentialBugsSuite extends BaseTestSuite:
+class PotentialBugsTestSuite extends BaseTestSuite:
 
   private val testSymbolWithTestlibTastyQueryContext = testSymbolWithContext(TestData.testlib_tastyquery_context)
 
@@ -362,3 +361,16 @@ class PotentialBugsSuite extends BaseTestSuite:
     s1.declaredType.asInstanceOf[MethodType].paramTypes.map{case t: TypeRef => t.optSymbol}
     assert(app.args(1).tpe.isSubtype(s1.declaredType.asInstanceOf[MethodType].instantiateParamTypes(app.args.map(_.tpe))(1)))
   } //TASTY_QUERY BUG -> FIXED 0.8.1
+
+  testSymbolWithContext(TestData.testlib_dummy_context)("pbXXX_local-bindings-crossing-boundaries")("dummy.LocalReferencesScoping[$]") { symbol =>
+    val s = symbol.asClass.getNonOverloadedDecl(termName("sc12")).get
+    val t = s.tree.get
+
+    t.asInstanceOf[DefDef].rhs.get.print
+    println("TYPE: " + t.asInstanceOf[DefDef].rhs.get.asInstanceOf[TypeApply].fun.tpe)
+
+    val checker = TreeChecker(TreeCheck.someChecks(List("LocalReferencesScoping")))
+    val problems = checker.check(t)
+
+    //assertEquals(problems, List.empty[Problem])
+  } //???
